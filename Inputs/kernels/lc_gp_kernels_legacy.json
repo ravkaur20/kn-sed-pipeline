@@ -1,0 +1,713 @@
+{
+  "ASASSN14jb": {
+    "Bessell_B": {
+      "mean": null,
+      "opt": false,
+      "scale": 1000
+    },
+    "Bessell_V": {
+      "mean": null,
+      "opt": false,
+      "scale": 1000
+    },
+    "sdss_g": {
+      "mean": null,
+      "opt": false,
+      "scale": 1000
+    },
+    "sdss_r": {
+      "mean": null,
+      "opt": false,
+      "scale": 1000
+    },
+    "swift_B": {
+      "mean": null,
+      "opt": false,
+      "scale": 100
+    },
+    "swift_U": {
+      "mean": null,
+      "opt": false,
+      "scale": 100
+    }
+  },
+  "ASASSN15oz": {
+    "Bessell_B": {
+      "mean": null,
+      "opt": false,
+      "scale": 500
+    },
+    "Bessell_V": {
+      "mean": null,
+      "opt": false,
+      "scale": 500
+    },
+    "sdss_i": {
+      "mean": null,
+      "opt": false,
+      "scale": 1500
+    },
+    "sdss_r": {
+      "mean": null,
+      "opt": false,
+      "scale": 1500
+    },
+    "swift_U": {
+      "mean": 0.2,
+      "opt": false,
+      "scale": 70
+    },
+    "swift_UVM2": {
+      "mean": 0.2,
+      "opt": false,
+      "scale": 40
+    },
+    "swift_UVW1": {
+      "mean": 0.2,
+      "opt": false,
+      "scale": 40
+    },
+    "swift_UVW2": {
+      "mean": 0.5,
+      "opt": false,
+      "scale": 40
+    }
+  },
+  "SN1993J": {
+    "Bessell_R": {
+      "mean": null,
+      "opt": false,
+      "scale": 10
+    }
+  },
+  "SN1994I": {
+    "Bessell_B": {
+      "mean": null,
+      "opt": false,
+      "scale": 800
+    },
+    "Bessell_U": {
+      "mean": null,
+      "opt": false,
+      "scale": 100
+    }
+  },
+  "SN1999dn": {
+    "Bessell_B": {
+      "mean": null,
+      "opt": false,
+      "scale": 400
+    },
+    "Bessell_R": {
+      "mean": null,
+      "opt": false,
+      "scale": 400
+    },
+    "Bessell_V": {
+      "mean": null,
+      "opt": false,
+      "scale": 400
+    }
+  },
+  "SN1999em": {
+    "Bessell_B": {
+      "mean": null,
+      "opt": false,
+      "scale": 1000
+    },
+    "Bessell_I": {
+      "mean": null,
+      "opt": false,
+      "scale": 1000
+    },
+    "Bessell_R": {
+      "mean": null,
+      "opt": false,
+      "scale": 1000
+    },
+    "Bessell_V": {
+      "mean": null,
+      "opt": false,
+      "scale": 1000
+    }
+  },
+  "SN2004aw": {
+    "Bessell_B": {
+      "mean": null,
+      "opt": false,
+      "scale": 100
+    },
+    "Bessell_I": {
+      "mean": null,
+      "opt": false,
+      "scale": 100
+    },
+    "Bessell_R": {
+      "mean": null,
+      "opt": false,
+      "scale": 100
+    },
+    "Bessell_V": {
+      "mean": null,
+      "opt": false,
+      "scale": 100
+    }
+  },
+  "SN2004et": {
+    "Bessell_B": {
+      "mean": 0.7,
+      "opt": false,
+      "scale": 2000
+    },
+    "Bessell_R": {
+      "mean": 0.7,
+      "opt": false,
+      "scale": 2000
+    },
+    "Bessell_V": {
+      "mean": 0.7,
+      "opt": false,
+      "scale": 2000
+    }
+  },
+  "SN2004fe": {
+    "sdss_u": {
+      "mean": null,
+      "opt": false,
+      "scale": 100
+    }
+  },
+  "SN2004gq": {
+    "Bessell_B": {
+      "mean": null,
+      "opt": false,
+      "scale": 70
+    },
+    "sdss_u": {
+      "mean": null,
+      "opt": false,
+      "scale": 70
+    }
+  },
+  "SN2004gv": {
+    "sdss_u": {
+      "mean": null,
+      "opt": false,
+      "scale": 70
+    }
+  },
+  "SN2004gt": {
+    "Bessell_B": {
+      "mean": null,
+      "opt": false,
+      "scale": 300
+    },
+    "sdss_g": {
+      "mean": null,
+      "opt": false,
+      "scale": 300
+    },
+    "sdss_r": {
+      "mean": null,
+      "opt": false,
+      "scale": 300
+    }
+  },
+  "SN2005cs": {
+    "Bessell_B": {
+      "mean": 1,
+      "opt": false,
+      "scale": 200
+    },
+    "Bessell_V": {
+      "mean": 1,
+      "opt": false,
+      "scale": 500
+    }
+  },
+  "SN2006aj": {
+    "swift_B": {
+      "mean": null,
+      "opt": false,
+      "scale": 100
+    },
+    "swift_U": {
+      "mean": null,
+      "opt": false,
+      "scale": 100
+    },
+    "swift_UVW1": {
+      "mean": null,
+      "opt": false,
+      "scale": 100
+    },
+    "swift_UVW2": {
+      "mean": 0.1,
+      "opt": false,
+      "scale": 3
+    },
+    "swift_V": {
+      "mean": null,
+      "opt": false,
+      "scale": 40
+    }
+  },
+  "SN2006ep": {
+    "Bessell_B": {
+      "mean": null,
+      "opt": false,
+      "scale": 500
+    },
+    "sdss_g": {
+      "mean": null,
+      "opt": false,
+      "scale": 500
+    },
+    "sdss_u": {
+      "mean": null,
+      "opt": false,
+      "scale": 50
+    }
+  },
+  "SN2007Y": {
+    "swift_UVM2": {
+      "mean": 0.5,
+      "opt": false,
+      "scale": 50
+    }
+  },
+  "SN2007gr": {
+    "Bessell_B": {
+      "mean": null,
+      "opt": false,
+      "scale": 150
+    },
+    "Bessell_U": {
+      "mean": 0.5,
+      "opt": false,
+      "scale": 70
+    }
+  },
+  "SN2007od": {
+    "Bessell_V": {
+      "mean": null,
+      "opt": false,
+      "scale": 200
+    }
+  },
+  "SN2007pk": {
+    "Bessell_B": {
+      "mean": null,
+      "opt": false,
+      "scale": 300
+    },
+    "Bessell_R": {
+      "mean": null,
+      "opt": false,
+      "scale": 300
+    },
+    "Bessell_V": {
+      "mean": null,
+      "opt": false,
+      "scale": 300
+    },
+    "swift_U": {
+      "mean": null,
+      "opt": false,
+      "scale": 100
+    }
+  },
+  "SN2007ru": {
+    "Bessell_B": {
+      "mean": null,
+      "opt": false,
+      "scale": 1000
+    },
+    "Bessell_R": {
+      "mean": null,
+      "opt": false,
+      "scale": 1200
+    },
+    "Bessell_V": {
+      "mean": null,
+      "opt": false,
+      "scale": 1200
+    }
+  },
+  "SN2008D": {
+    "Bessell_B": {
+      "mean": null,
+      "opt": false,
+      "scale": 300
+    },
+    "Bessell_V": {
+      "mean": null,
+      "opt": false,
+      "scale": 300
+    },
+    "sdss_i'": {
+      "mean": null,
+      "opt": false,
+      "scale": 300
+    },
+    "sdss_r'": {
+      "mean": null,
+      "opt": false,
+      "scale": 300
+    },
+    "swift_U": {
+      "mean": null,
+      "opt": false,
+      "scale": 50
+    },
+    "swift_UVW1": {
+      "mean": 0.5,
+      "opt": false,
+      "scale": 200
+    }
+  },
+  "SN2008bj": {
+    "Bessell_V": {
+      "mean": null,
+      "opt": false,
+      "scale": 200
+    },
+    "sdss_i'": {
+      "mean": null,
+      "opt": false,
+      "scale": 500
+    }
+  },
+  "SN2008bo": {
+    "swift_U": {
+      "mean": null,
+      "opt": false,
+      "scale": 100
+    }
+  },
+  "SN2008in": {
+    "Bessell_V": {
+      "mean": 0.6,
+      "opt": false,
+      "scale": 500
+    },
+    "swift_U": {
+      "mean": 0.0,
+      "opt": false,
+      "scale": 100
+    }
+  },
+  "SN2009bw": {
+    "Bessell_U": {
+      "mean": null,
+      "opt": false,
+      "scale": 100
+    },
+    "Bessell_V": {
+      "mean": null,
+      "opt": false,
+      "scale": 2000
+    }
+  },
+  "SN2009dd": {
+    "Bessell_U": {
+      "mean": 0.1,
+      "opt": false,
+      "scale": 100
+    },
+    "Bessell_V": {
+      "mean": 0.05,
+      "opt": false,
+      "scale": 500
+    }
+  },
+  "SN2009ib": {
+    "sdss_u'": {
+      "mean": 3.0,
+      "opt": false,
+      "scale": 50
+    }
+  },
+  "SN2009jf": {
+    "Bessell_B": {
+      "mean": null,
+      "opt": false,
+      "scale": 1000
+    }
+  },
+  "SN2009kr": {
+    "Bessell_V": {
+      "mean": null,
+      "opt": false,
+      "scale": 1000
+    }
+  },
+  "SN2011dh": {
+    "Bessell_R": {
+      "mean": null,
+      "opt": false,
+      "scale": 50
+    },
+    "Bessell_V": {
+      "mean": null,
+      "opt": false,
+      "scale": 50
+    },
+    "sdss_g'": {
+      "mean": null,
+      "opt": false,
+      "scale": 50
+    }
+  },
+  "SN2011ei": {
+    "swift_U": {
+      "mean": null,
+      "opt": false,
+      "scale": 50
+    }
+  },
+  "SN2011fu": {
+    "Bessell_R": {
+      "mean": null,
+      "opt": false,
+      "scale": 70
+    },
+    "Bessell_U": {
+      "mean": 0.05,
+      "opt": false,
+      "scale": 100
+    },
+    "Bessell_V": {
+      "mean": null,
+      "opt": false,
+      "scale": 70
+    }
+  },
+  "SN2011hs": {
+    "sdss_u'": {
+      "mean": null,
+      "opt": false,
+      "scale": 40
+    }
+  },
+  "SN2011ht": {
+    "Bessell_I": {
+      "mean": null,
+      "opt": false,
+      "scale": 700
+    },
+    "Bessell_R": {
+      "mean": null,
+      "opt": false,
+      "scale": 700
+    },
+    "Bessell_V": {
+      "mean": null,
+      "opt": false,
+      "scale": 700
+    }
+  },
+  "SN2012A": {
+    "Bessell_V": {
+      "mean": null,
+      "opt": false,
+      "scale": 1000
+    }
+  },
+  "SN2012au": {
+    "Bessell_B": {
+      "mean": null,
+      "opt": false,
+      "scale": 100
+    },
+    "swift_U": {
+      "mean": null,
+      "opt": false,
+      "scale": 100
+    }
+  },
+  "SN2012aw": {
+    "Bessell_U": {
+      "mean": null,
+      "opt": false,
+      "scale": 500
+    },
+    "swift_UVW1": {
+      "mean": null,
+      "opt": false,
+      "scale": 50
+    },
+    "swift_UVW2": {
+      "mean": null,
+      "opt": false,
+      "scale": 50
+    }
+  },
+  "SN2013ab": {
+    "Bessell_I": {
+      "mean": null,
+      "opt": false,
+      "scale": 500
+    },
+    "Bessell_V": {
+      "mean": null,
+      "opt": false,
+      "scale": 500
+    },
+    "Bessell_B": {
+      "mean": null,
+      "opt": false,
+      "scale": 500
+    },
+    "sdss_g": {
+      "mean": null,
+      "opt": false,
+      "scale": 500
+    },
+    "swift_U": {
+      "mean": null,
+      "opt": false,
+      "scale": 100
+    }
+  },
+  "SN2013am": {
+    "Bessell_I": {
+      "mean": 0.5,
+      "opt": false,
+      "scale": 1000
+    },
+    "Bessell_R": {
+      "mean": 0.7,
+      "opt": false,
+      "scale": 500
+    },
+    "Bessell_V": {
+      "mean": 0.8,
+      "opt": false,
+      "scale": 80
+    },
+    "sdss_i": {
+      "mean": null,
+      "opt": false,
+      "scale": 500
+    }
+  },
+  "SN2013by": {
+    "swift_UVM2": {
+      "mean": 0.8,
+      "opt": false,
+      "scale": 50
+    },
+    "swift_UVW1": {
+      "mean": 0.8,
+      "opt": false,
+      "scale": 50
+    },
+    "swift_UVW2": {
+      "mean": 0.8,
+      "opt": false,
+      "scale": 50
+    }
+  },
+  "SN2013df": {
+    "Bessell_B": {
+      "mean": null,
+      "opt": false,
+      "scale": 200
+    },
+    "Bessell_I": {
+      "mean": null,
+      "opt": false,
+      "scale": 1000
+    },
+    "Bessell_U": {
+      "mean": null,
+      "opt": false,
+      "scale": 100
+    }
+  },
+  "SN2013ej": {
+    "Bessell_U": {
+      "mean": null,
+      "opt": false,
+      "scale": 35
+    }
+  },
+  "SN2013fs": {
+    "Bessell_B": {
+      "mean": 0.1,
+      "opt": false,
+      "scale": 1000
+    },
+    "Bessell_I": {
+      "mean": 0.1,
+      "opt": false,
+      "scale": 1000
+    },
+    "Bessell_V": {
+      "mean": 0.1,
+      "opt": false,
+      "scale": 700
+    },
+    "swift_UVM2": {
+      "mean": null,
+      "opt": false,
+      "scale": 40
+    },
+    "swift_UVW1": {
+      "mean": null,
+      "opt": false,
+      "scale": 40
+    },
+    "swift_UVW2": {
+      "mean": null,
+      "opt": false,
+      "scale": 40
+    }
+  },
+  "SN2013ge": {
+    "Bessell_V": {
+      "mean": null,
+      "opt": false,
+      "scale": 300
+    },
+    "swift_U": {
+      "mean": null,
+      "opt": false,
+      "scale": 50
+    }
+  },
+  "SN2014G": {
+    "Bessell_U": {
+      "mean": null,
+      "opt": false,
+      "scale": 1000
+    },
+    "swift_UVW1": {
+      "mean": null,
+      "opt": false,
+      "scale": 25
+    }
+  },
+  "SN2016X": {
+    "Bessell_U": {
+      "mean": null,
+      "opt": false,
+      "scale": 100
+    }
+  },
+  "SN2016gkg": {
+    "Bessell_B": {
+      "mean": null,
+      "opt": false,
+      "scale": 1000
+    }
+  },
+  "iPTF13bvn": {
+    "swift_UVW2": {
+      "mean": 0.6,
+      "opt": false,
+      "scale": 20
+    }
+  }
+}

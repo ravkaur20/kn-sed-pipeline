@@ -1,0 +1,4 @@
+{
+  "VISTA_J": {"scale": 10, "opt": false, "mean": null},
+  "UVOT_U": {"scale": 35, "opt": false, "mean": 0.1}
+}

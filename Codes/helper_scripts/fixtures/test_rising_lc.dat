@@ -1,0 +1,5 @@
+#MJD,band,Flux,Flux_err,FilterSet,Instr
+57983.0,TestBand,1.0e-15,1.0e-16,GeneralFilters,TestCam
+57984.0,TestBand,2.0e-15,1.5e-16,GeneralFilters,TestCam
+57985.0,TestBand,3.0e-15,2.0e-16,GeneralFilters,TestCam
+57983.5,OtherBand,5.0e-16,5.0e-17,GeneralFilters,TestCam

@@ -1,0 +1,283 @@
+{
+  "active_filters": null,
+  "bands": {
+    "ANDICAM_K": {
+      "color": "brown",
+      "marker": "o"
+    },
+    "DECam_Y": {
+      "color": "goldenrod",
+      "marker": "^"
+    },
+    "DECam_g": {
+      "color": "mediumspringgreen",
+      "marker": "^"
+    },
+    "DECam_i": {
+      "color": "orangered",
+      "marker": "^"
+    },
+    "DECam_r": {
+      "color": "darkorange",
+      "marker": "^"
+    },
+    "DECam_u": {
+      "color": "navy",
+      "marker": "^"
+    },
+    "DECam_z": {
+      "color": "darkslategray",
+      "marker": "^"
+    },
+    "EFOSC2_U": {
+      "color": "blue",
+      "marker": "D"
+    },
+    "EFOSC2_V": {
+      "color": "limegreen",
+      "marker": "D"
+    },
+    "FLAMINGOS-2_H": {
+      "color": "firebrick",
+      "marker": "v"
+    },
+    "FLAMINGOS-2_J": {
+      "color": "black",
+      "marker": "v"
+    },
+    "FLAMINGOS-2_Ks": {
+      "color": "sienna",
+      "marker": "v"
+    },
+    "FORS2_B": {
+      "color": "blue",
+      "marker": "<"
+    },
+    "FORS2_I": {
+      "color": "mediumvioletred",
+      "marker": "<"
+    },
+    "FORS2_R": {
+      "color": "crimson",
+      "marker": "<"
+    },
+    "FORS2_V": {
+      "color": "limegreen",
+      "marker": "<"
+    },
+    "FourStar_H": {
+      "color": "darkred",
+      "marker": "o"
+    },
+    "FourStar_J": {
+      "color": "black",
+      "marker": "o"
+    },
+    "FourStar_J1": {
+      "color": "dimgray",
+      "marker": "o"
+    },
+    "FourStar_Ks": {
+      "color": "brown",
+      "marker": "o"
+    },
+    "GFC_i": {
+      "color": "firebrick",
+      "marker": "p"
+    },
+    "GFC_r": {
+      "color": "tomato",
+      "marker": "p"
+    },
+    "GFC_y": {
+      "color": "goldenrod",
+      "marker": "p"
+    },
+    "GFC_z": {
+      "color": "maroon",
+      "marker": "p"
+    },
+    "GMOS_g": {
+      "color": "green",
+      "marker": "<"
+    },
+    "GMOS_i": {
+      "color": "indianred",
+      "marker": "<"
+    },
+    "GMOS_r": {
+      "color": "red",
+      "marker": "<"
+    },
+    "GMOS_z": {
+      "color": "darkslategray",
+      "marker": "<"
+    },
+    "GROND_H": {
+      "color": "maroon",
+      "marker": "h"
+    },
+    "GROND_J": {
+      "color": "dimgray",
+      "marker": "h"
+    },
+    "GROND_K": {
+      "color": "saddlebrown",
+      "marker": "h"
+    },
+    "GROND_g": {
+      "color": "mediumseagreen",
+      "marker": "h"
+    },
+    "GROND_i": {
+      "color": "orangered",
+      "marker": "h"
+    },
+    "GROND_r": {
+      "color": "crimson",
+      "marker": "h"
+    },
+    "GROND_z": {
+      "color": "darkslategray",
+      "marker": "h"
+    },
+    "HAWKI_Ks": {
+      "color": "brown",
+      "marker": "<"
+    },
+    "HSC_z": {
+      "color": "darkslategray",
+      "marker": ">"
+    },
+    "IMACS_i": {
+      "color": "orangered",
+      "marker": "s"
+    },
+    "IMACS_r": {
+      "color": "darkred",
+      "marker": "s"
+    },
+    "LRIS_I": {
+      "color": "mediumvioletred",
+      "marker": "D"
+    },
+    "MOIRCS_Ks": {
+      "color": "sienna",
+      "marker": ">"
+    },
+    "SIRIUS_H": {
+      "color": "darkred",
+      "marker": "D"
+    },
+    "SIRIUS_J": {
+      "color": "black",
+      "marker": "D"
+    },
+    "SIRIUS_Ks": {
+      "color": "brown",
+      "marker": "D"
+    },
+    "SOFI_H": {
+      "color": "firebrick",
+      "marker": "o"
+    },
+    "SOFI_Ks": {
+      "color": "saddlebrown",
+      "marker": "o"
+    },
+    "Sinistro_V": {
+      "color": "mediumaquamarine",
+      "marker": "s"
+    },
+    "Sinistro_g": {
+      "color": "darkgreen",
+      "marker": "s"
+    },
+    "Sinistro_i": {
+      "color": "firebrick",
+      "marker": "s"
+    },
+    "Sinistro_r": {
+      "color": "crimson",
+      "marker": "s"
+    },
+    "Sinistro_z": {
+      "color": "sienna",
+      "marker": "s"
+    },
+    "Skymapper_g": {
+      "color": "forestgreen",
+      "marker": "P"
+    },
+    "Skymapper_i": {
+      "color": "slateblue",
+      "marker": "P"
+    },
+    "Skymapper_r": {
+      "color": "deeppink",
+      "marker": "P"
+    },
+    "Swope_B": {
+      "color": "royalblue",
+      "marker": "o"
+    },
+    "Swope_V": {
+      "color": "green",
+      "marker": "o"
+    },
+    "Swope_g": {
+      "color": "darkseagreen",
+      "marker": "o"
+    },
+    "Swope_i": {
+      "color": "indianred",
+      "marker": "o"
+    },
+    "Swope_r": {
+      "color": "red",
+      "marker": "o"
+    },
+    "T80Cam_g": {
+      "color": "seagreen",
+      "marker": "*"
+    },
+    "UVOT_B": {
+      "color": "dodgerblue",
+      "marker": "X"
+    },
+    "UVOT_M2": {
+      "color": "darkviolet",
+      "marker": "X"
+    },
+    "UVOT_U": {
+      "color": "teal",
+      "marker": "X"
+    },
+    "UVOT_W1": {
+      "color": "purple",
+      "marker": "X"
+    },
+    "UVOT_W2": {
+      "color": "indigo",
+      "marker": "X"
+    },
+    "VIMOS_z": {
+      "color": "maroon",
+      "marker": "<"
+    },
+    "VISTA_J": {
+      "color": "dimgray",
+      "marker": "o"
+    },
+    "VISTA_Ks": {
+      "color": "saddlebrown",
+      "marker": "o"
+    },
+    "VISTA_Y": {
+      "color": "salmon",
+      "marker": "o"
+    }
+  },
+  "exclude": ["Swope_V", "EFOSC2_V"],
+  "early_bazin_keep": null
+}

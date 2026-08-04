@@ -1,0 +1,11 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+.venv/
+venv/
+*.egg-info/
+.mypy_cache/
+Outputs/AT2017gfo/*
+!Outputs/AT2017gfo/.gitkeep

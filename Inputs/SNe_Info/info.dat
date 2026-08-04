@@ -1,0 +1,11 @@
+## Info about all SNe.
+## RA,DEC will be used for MW extinction corrections
+## FullType: sub-type of the SN including peculiarities
+## Type: sub-type of the SN. Must be one of [II, IIb, IIn, Ib, Ic, Ic-BL] (following Li et al. 2011 classification scheme)
+## Rich_Type: sub-type of the SN. Must be one of [IIL, IIP, IIb, IIn, Ib, Ic, Ic-BL] (following Richardson et al. 2014 classification scheme)
+#
+Name z RA Dec FullType Type Rich_Type EBV_MW EBV_host
+iPTF13bvn 0.00449 15:00:00.15 +01:52:53.17 Ib Ib Ib 0.051 0.17
+SN2011bm 0.022 12:56:53.89 +22:22:28.2 Ic Ic Ic 0.034 0.032
+SN1993J -0.000113 09:55:24.7747 +69:01:13.702 IIb IIb IIb 0.08 0.1
+AT2017gfo 0.00984 13:09:48.082 -23:22:53.28 KN KN KN 0.1053 0
