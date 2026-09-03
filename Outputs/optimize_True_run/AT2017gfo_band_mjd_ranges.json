@@ -1,0 +1,350 @@
+{
+  "source_photometry_file": "/Users/ravkaur/Desktop/research/kilonova-SED/kn-sed-pipeline/Inputs/Photometry/1_LCs_flux_raw/AT2017gfo.dat",
+  "bands": {
+    "ANDICAM_K": {
+      "min_mjd": 57989.969,
+      "max_mjd": 57992.969,
+      "n_obs": 4
+    },
+    "DECam_Y": {
+      "min_mjd": 57983.976,
+      "max_mjd": 57992.975,
+      "n_obs": 10
+    },
+    "DECam_g": {
+      "min_mjd": 57983.979,
+      "max_mjd": 57989.997,
+      "n_obs": 7
+    },
+    "DECam_i": {
+      "min_mjd": 57983.003,
+      "max_mjd": 57993.0,
+      "n_obs": 10
+    },
+    "DECam_r": {
+      "min_mjd": 57983.978,
+      "max_mjd": 57990.997,
+      "n_obs": 8
+    },
+    "DECam_u": {
+      "min_mjd": 57983.98,
+      "max_mjd": 57985.984,
+      "n_obs": 3
+    },
+    "DECam_z": {
+      "min_mjd": 57983.004,
+      "max_mjd": 57992.987,
+      "n_obs": 10
+    },
+    "EFOSC2_U": {
+      "min_mjd": 57984.056,
+      "max_mjd": 57984.056,
+      "n_obs": 1
+    },
+    "EFOSC2_V": {
+      "min_mjd": 57983.964,
+      "max_mjd": 57986.053,
+      "n_obs": 14
+    },
+    "FLAMINGOS-2_H": {
+      "min_mjd": 57984.0,
+      "max_mjd": 57996.999,
+      "n_obs": 10
+    },
+    "FLAMINGOS-2_J": {
+      "min_mjd": 57985.019,
+      "max_mjd": 57993.989,
+      "n_obs": 5
+    },
+    "FLAMINGOS-2_Ks": {
+      "min_mjd": 57983.059,
+      "max_mjd": 57999.989,
+      "n_obs": 7
+    },
+    "FORS2_B": {
+      "min_mjd": 57987.02,
+      "max_mjd": 57989.02,
+      "n_obs": 2
+    },
+    "FORS2_I": {
+      "min_mjd": 57987.01,
+      "max_mjd": 57994.0,
+      "n_obs": 5
+    },
+    "FORS2_R": {
+      "min_mjd": 57986.97,
+      "max_mjd": 57993.01,
+      "n_obs": 4
+    },
+    "FORS2_V": {
+      "min_mjd": 57987.02,
+      "max_mjd": 57993.01,
+      "n_obs": 4
+    },
+    "FourStar_H": {
+      "min_mjd": 57982.99,
+      "max_mjd": 57984.971,
+      "n_obs": 3
+    },
+    "FourStar_J": {
+      "min_mjd": 57983.0,
+      "max_mjd": 57985.973,
+      "n_obs": 4
+    },
+    "FourStar_J1": {
+      "min_mjd": 57984.002,
+      "max_mjd": 57984.98,
+      "n_obs": 2
+    },
+    "FourStar_Ks": {
+      "min_mjd": 57983.03,
+      "max_mjd": 58000.99,
+      "n_obs": 8
+    },
+    "GFC_i": {
+      "min_mjd": 57983.231,
+      "max_mjd": 57985.231,
+      "n_obs": 3
+    },
+    "GFC_r": {
+      "min_mjd": 57984.761,
+      "max_mjd": 57984.761,
+      "n_obs": 1
+    },
+    "GFC_y": {
+      "min_mjd": 57983.231,
+      "max_mjd": 57989.23,
+      "n_obs": 5
+    },
+    "GFC_z": {
+      "min_mjd": 57983.231,
+      "max_mjd": 57986.236,
+      "n_obs": 4
+    },
+    "GMOS_g": {
+      "min_mjd": 57986.039,
+      "max_mjd": 57986.039,
+      "n_obs": 1
+    },
+    "GMOS_i": {
+      "min_mjd": 57986.039,
+      "max_mjd": 57990.039,
+      "n_obs": 2
+    },
+    "GMOS_r": {
+      "min_mjd": 57986.039,
+      "max_mjd": 57990.039,
+      "n_obs": 2
+    },
+    "GMOS_z": {
+      "min_mjd": 57986.049,
+      "max_mjd": 57986.049,
+      "n_obs": 1
+    },
+    "GROND_H": {
+      "min_mjd": 57983.969,
+      "max_mjd": 57993.016,
+      "n_obs": 8
+    },
+    "GROND_J": {
+      "min_mjd": 57983.969,
+      "max_mjd": 57991.969,
+      "n_obs": 7
+    },
+    "GROND_K": {
+      "min_mjd": 57983.969,
+      "max_mjd": 57993.016,
+      "n_obs": 8
+    },
+    "GROND_g": {
+      "min_mjd": 57983.969,
+      "max_mjd": 57986.974,
+      "n_obs": 4
+    },
+    "GROND_i": {
+      "min_mjd": 57983.969,
+      "max_mjd": 57986.974,
+      "n_obs": 4
+    },
+    "GROND_r": {
+      "min_mjd": 57983.969,
+      "max_mjd": 57986.974,
+      "n_obs": 4
+    },
+    "GROND_z": {
+      "min_mjd": 57983.969,
+      "max_mjd": 57986.974,
+      "n_obs": 4
+    },
+    "HAWKI_Ks": {
+      "min_mjd": 57999.979,
+      "max_mjd": 58007.969,
+      "n_obs": 3
+    },
+    "HSC_z": {
+      "min_mjd": 57983.229,
+      "max_mjd": 57990.229,
+      "n_obs": 3
+    },
+    "IMACS_i": {
+      "min_mjd": 57985.0,
+      "max_mjd": 57985.0,
+      "n_obs": 1
+    },
+    "IMACS_r": {
+      "min_mjd": 57985.009,
+      "max_mjd": 57985.009,
+      "n_obs": 1
+    },
+    "LRIS_I": {
+      "min_mjd": 57989.234,
+      "max_mjd": 57989.234,
+      "n_obs": 1
+    },
+    "MOIRCS_Ks": {
+      "min_mjd": 57997.799,
+      "max_mjd": 57997.799,
+      "n_obs": 1
+    },
+    "SIRIUS_H": {
+      "min_mjd": 57983.699,
+      "max_mjd": 57993.699,
+      "n_obs": 12
+    },
+    "SIRIUS_J": {
+      "min_mjd": 57983.699,
+      "max_mjd": 57989.699,
+      "n_obs": 9
+    },
+    "SIRIUS_Ks": {
+      "min_mjd": 57983.699,
+      "max_mjd": 57993.699,
+      "n_obs": 12
+    },
+    "SOFI_H": {
+      "min_mjd": 57993.997,
+      "max_mjd": 57993.997,
+      "n_obs": 1
+    },
+    "SOFI_Ks": {
+      "min_mjd": 57994.985,
+      "max_mjd": 57995.99,
+      "n_obs": 2
+    },
+    "Sinistro_V": {
+      "min_mjd": 57984.751,
+      "max_mjd": 57985.743,
+      "n_obs": 4
+    },
+    "Sinistro_g": {
+      "min_mjd": 57983.401,
+      "max_mjd": 57985.017,
+      "n_obs": 7
+    },
+    "Sinistro_i": {
+      "min_mjd": 57983.972,
+      "max_mjd": 57985.736,
+      "n_obs": 14
+    },
+    "Sinistro_r": {
+      "min_mjd": 57983.405,
+      "max_mjd": 57987.358,
+      "n_obs": 12
+    },
+    "Sinistro_z": {
+      "min_mjd": 57984.751,
+      "max_mjd": 57985.74,
+      "n_obs": 3
+    },
+    "Skymapper_g": {
+      "min_mjd": 57983.421,
+      "max_mjd": 57985.398,
+      "n_obs": 2
+    },
+    "Skymapper_i": {
+      "min_mjd": 57983.387,
+      "max_mjd": 57984.392,
+      "n_obs": 3
+    },
+    "Skymapper_r": {
+      "min_mjd": 57983.419,
+      "max_mjd": 57985.397,
+      "n_obs": 4
+    },
+    "Swope_B": {
+      "min_mjd": 57984.034,
+      "max_mjd": 57985.995,
+      "n_obs": 2
+    },
+    "Swope_V": {
+      "min_mjd": 57983.995,
+      "max_mjd": 57985.989,
+      "n_obs": 2
+    },
+    "Swope_g": {
+      "min_mjd": 57984.055,
+      "max_mjd": 57987.004,
+      "n_obs": 3
+    },
+    "Swope_i": {
+      "min_mjd": 57982.981,
+      "max_mjd": 57989.99,
+      "n_obs": 6
+    },
+    "Swope_r": {
+      "min_mjd": 57984.047,
+      "max_mjd": 57986.997,
+      "n_obs": 3
+    },
+    "T80Cam_g": {
+      "min_mjd": 57983.968,
+      "max_mjd": 57984.017,
+      "n_obs": 16
+    },
+    "UVOT_B": {
+      "min_mjd": 57985.184,
+      "max_mjd": 57985.184,
+      "n_obs": 1
+    },
+    "UVOT_M2": {
+      "min_mjd": 57983.156,
+      "max_mjd": 57983.594,
+      "n_obs": 2
+    },
+    "UVOT_U": {
+      "min_mjd": 57983.167,
+      "max_mjd": 57984.036,
+      "n_obs": 3
+    },
+    "UVOT_W1": {
+      "min_mjd": 57983.162,
+      "max_mjd": 57983.569,
+      "n_obs": 2
+    },
+    "UVOT_W2": {
+      "min_mjd": 57983.172,
+      "max_mjd": 57983.172,
+      "n_obs": 1
+    },
+    "VIMOS_z": {
+      "min_mjd": 57986.98,
+      "max_mjd": 58001.992,
+      "n_obs": 5
+    },
+    "VISTA_J": {
+      "min_mjd": 57983.009,
+      "max_mjd": 57993.989,
+      "n_obs": 12
+    },
+    "VISTA_Ks": {
+      "min_mjd": 57982.999,
+      "max_mjd": 57996.989,
+      "n_obs": 13
+    },
+    "VISTA_Y": {
+      "min_mjd": 57983.019,
+      "max_mjd": 57991.989,
+      "n_obs": 9
+    }
+  }
+}

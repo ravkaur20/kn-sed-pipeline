@@ -1,0 +1,40 @@
+{
+  "config": {
+    "log_amp": -4.969125724762308,
+    "log_sigma_phot": -4.422848629194137,
+    "log_sigma_spec": -5.298317366548036,
+    "log_metric_t": -2.0788151315562913,
+    "log_metric_w": -6.0,
+    "log_metric_t2": 1.0,
+    "logit_weight_t": -3.1838349825102368,
+    "log_metric_w2": 1.3766019319725402,
+    "logit_weight_w": -5.820273444321808,
+    "amp": 0.006949220911440558,
+    "sigma_phot": 0.011999999999999999,
+    "sigma_spec": 0.005000000000000002,
+    "metric_t": 0.12507832579491734,
+    "metric_w": 0.0024787521766663585,
+    "metric_t2": 2.718281828459045,
+    "weight_t_short": 0.03977859316744827,
+    "metric_w2": 3.9614175642190963,
+    "weight_w_short": 0.0029580179516782578,
+    "name_t": "matern52",
+    "name_w": "matern52",
+    "additive_t": true,
+    "additive_w": true
+  },
+  "grid_norm_info": {
+    "offset": -69.07755278982137,
+    "scale_factor": 30.991605372399334,
+    "coord_parametrization": "zscore",
+    "x1_mean": 3.93925862912959,
+    "x1_std": 0.2366207960119781,
+    "x2_mean": 0.5429163921280863,
+    "x2_std": 0.44961009136388247,
+    "x2_train_min": -2.9586073258
+  },
+  "log_likelihood": 31458.287064403714,
+  "total_runtime_seconds": 79.46103024482727,
+  "optimize_seconds": 21.490535974502563,
+  "log_likelihood_at_compute": 31458.287064403714
+}

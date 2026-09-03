@@ -1,0 +1,13 @@
+{
+  "iteration": 0,
+  "n_extractions": 38,
+  "n_skipped_extract": 1,
+  "n_remangled": 38,
+  "max_rel_phot_err": 2.702636153566155,
+  "median_rel_phot_err": 0.13581901219670026,
+  "n_phot_points": 471,
+  "delta_mask_rms": NaN,
+  "n_compared": 0,
+  "chi2_per_n_total": 0.16564789314116335,
+  "gp_optimize": true
+}

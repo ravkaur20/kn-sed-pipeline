@@ -1,0 +1,24 @@
+{
+  "snname": "AT2017gfo",
+  "mode": "extrapolate_spectra",
+  "gp_module": "GP2dim_utils_iter",
+  "kernel_layout": "gp_matern_additive_opt",
+  "column_order": "X[:,0]=normalized_log10_wavelength, X[:,1]=normalized_log10_phase_days",
+  "prior_used": true,
+  "compute_note": "Use array ``y_compute`` for ``gp.compute``. For ln-flux modules it equals sqrt(yerr**2 + 1e-6**2); for linear_flux it equals yerr.",
+  "grid_norm_info": {
+    "offset": -69.07755278982137,
+    "scale_factor": 31.02795357332149,
+    "coord_parametrization": "zscore",
+    "x1_mean": 3.93925862912959,
+    "x1_std": 0.2366207960119781,
+    "x2_mean": 0.5429163921280863,
+    "x2_std": 0.44961009136388247,
+    "x2_train_min": -2.9586073258
+  },
+  "files": {
+    "npz": "gp_minimal_bundle.npz",
+    "meta": "gp_minimal_bundle_meta.json"
+  },
+  "spec_bundle_id_export": "int32 per row: -1 photometry; non-negative spectroscopic bundle (see twodim_gp/spec_bundle_id_assign)"
+}

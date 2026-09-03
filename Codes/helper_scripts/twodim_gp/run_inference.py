@@ -14,7 +14,7 @@ import os
 import sys
 import time
 from dataclasses import asdict
-from typing import Any, Mapping, Optional, Union
+from typing import Any, Mapping, Optional, Sequence, Union
 
 import numpy as np
 from scipy.optimize import minimize
@@ -289,6 +289,30 @@ def _resolve_sigma_spec_min(
     return max(0.005, float(frac) * median_yerr_spec)
 
 
+def _clip_theta_to_bounds(
+    theta: np.ndarray, bounds: Sequence[tuple[float, float]]
+) -> np.ndarray:
+    out = np.asarray(theta, dtype=float).copy()
+    for i, (lo, hi) in enumerate(bounds):
+        out[i] = float(np.clip(out[i], lo, hi))
+    return out
+
+
+def _theta_within_bounds(
+    theta: np.ndarray,
+    bounds: Sequence[tuple[float, float]],
+    *,
+    atol: float = 1e-12,
+) -> bool:
+    th = np.asarray(theta, dtype=float).ravel()
+    if th.size != len(bounds):
+        return False
+    for v, (lo, hi) in zip(th, bounds):
+        if v < float(lo) - atol or v > float(hi) + atol:
+            return False
+    return True
+
+
 def _make_neg_ll(
     base_cfg: gu.KernelConfig,
     X: np.ndarray,
@@ -296,10 +320,14 @@ def _make_neg_ll(
     yerr: np.ndarray,
     point_class: np.ndarray,
     mean_model,
+    *,
+    bounds: Sequence[tuple[float, float]] | None = None,
 ):
     eval_count: dict[str, Any] = {"n": 0, "best": np.inf, "best_theta": None}
 
     def neg_ll(theta: np.ndarray) -> float:
+        if bounds is not None and not _theta_within_bounds(theta, bounds):
+            return 1e15
         cfg = gu.KernelConfig(**asdict(base_cfg))
         try:
             cfg.update_from_vector(theta)
@@ -474,8 +502,6 @@ def run_gp_from_bundle(
         else:
             X_opt, y_opt, yerr_opt, cls_opt = X, y, yerr, point_class
 
-        neg_ll, counter = _make_neg_ll(cfg0, X_opt, y_opt, yerr_opt, cls_opt, mean_model)
-        theta0 = cfg0.to_vector()
         bounds, bound_msgs = _tightened_optimizer_bounds(
             cfg0,
             sigma_spec_min=sigma_spec_min,
@@ -489,6 +515,13 @@ def run_gp_from_bundle(
             logit_weight_w_min=cfg.get("logit_weight_w_min"),
             logit_weight_w_max=cfg.get("logit_weight_w_max"),
         )
+        neg_ll, counter = _make_neg_ll(
+            cfg0, X_opt, y_opt, yerr_opt, cls_opt, mean_model, bounds=bounds
+        )
+        theta0_raw = cfg0.to_vector()
+        theta0 = _clip_theta_to_bounds(theta0_raw, bounds)
+        if not np.allclose(theta0_raw, theta0):
+            cfg0.update_from_vector(theta0)
         ll_initial = float(-neg_ll(theta0))
         t0 = time.time()
         res = minimize(
@@ -499,7 +532,12 @@ def run_gp_from_bundle(
             options={"maxiter": int(cfg["max_iter"]), "disp": False, "ftol": 1e-7},
         )
         elapsed_opt = time.time() - t0
-        if counter["best_theta"] is not None and -counter["best"] >= -res.fun:
+        use_counter = (
+            counter["best_theta"] is not None
+            and _theta_within_bounds(counter["best_theta"], bounds)
+            and float(counter["best"]) <= float(res.fun) + 1e-9
+        )
+        if use_counter:
             cfg0.update_from_vector(counter["best_theta"])
             ll_final_opt = float(-counter["best"])
         else:

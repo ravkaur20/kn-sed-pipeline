@@ -1,0 +1,153 @@
+{
+  "default_output_mode": "scale_only",
+  "groups": [
+    {
+      "id": "suggested_001_mjd_57983.9690",
+      "members": [
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969001_Phase+1.43d.dat",
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969002_Phase+1.43d.dat",
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969003_Phase+1.43d.dat"
+      ],
+      "output_mode": "scale_only",
+      "merge_order": [
+        "uvb",
+        "vis",
+        "nir"
+      ],
+      "reason": "auto: |\u0394MJD| <= 5.00 min"
+    },
+    {
+      "id": "suggested_002_mjd_57984.9690",
+      "members": [
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969001_Phase+2.42d.dat",
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969002_Phase+2.42d.dat",
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969003_Phase+2.42d.dat"
+      ],
+      "output_mode": "scale_only",
+      "merge_order": [
+        "uvb",
+        "vis",
+        "nir"
+      ],
+      "reason": "auto: |\u0394MJD| <= 5.00 min"
+    },
+    {
+      "id": "suggested_003_mjd_57985.9740",
+      "members": [
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974001_Phase+3.41d.dat",
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974002_Phase+3.41d.dat",
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974003_Phase+3.41d.dat"
+      ],
+      "output_mode": "scale_only",
+      "merge_order": [
+        "uvb",
+        "vis",
+        "nir"
+      ],
+      "reason": "auto: |\u0394MJD| <= 5.00 min"
+    },
+    {
+      "id": "suggested_004_mjd_57986.9740",
+      "members": [
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974001_Phase+4.40d.dat",
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974002_Phase+4.40d.dat",
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974003_Phase+4.40d.dat"
+      ],
+      "output_mode": "scale_only",
+      "merge_order": [
+        "uvb",
+        "vis",
+        "nir"
+      ],
+      "reason": "auto: |\u0394MJD| <= 5.00 min"
+    },
+    {
+      "id": "suggested_005_mjd_57987.9800",
+      "members": [
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980001_Phase+5.40d.dat",
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980002_Phase+5.40d.dat",
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980003_Phase+5.40d.dat"
+      ],
+      "output_mode": "scale_only",
+      "merge_order": [
+        "uvb",
+        "vis",
+        "nir"
+      ],
+      "reason": "auto: |\u0394MJD| <= 5.00 min"
+    },
+    {
+      "id": "suggested_006_mjd_57988.9900",
+      "members": [
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990001_Phase+6.40d.dat",
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990002_Phase+6.40d.dat",
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990003_Phase+6.40d.dat"
+      ],
+      "output_mode": "scale_only",
+      "merge_order": [
+        "uvb",
+        "vis",
+        "nir"
+      ],
+      "reason": "auto: |\u0394MJD| <= 5.00 min"
+    },
+    {
+      "id": "suggested_007_mjd_57990.0000",
+      "members": [
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000001_Phase+7.40d.dat",
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000002_Phase+7.40d.dat",
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000003_Phase+7.40d.dat"
+      ],
+      "output_mode": "scale_only",
+      "merge_order": [
+        "uvb",
+        "vis",
+        "nir"
+      ],
+      "reason": "auto: |\u0394MJD| <= 5.00 min"
+    },
+    {
+      "id": "suggested_008_mjd_57991.0000",
+      "members": [
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000001_Phase+8.40d.dat",
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000003_Phase+8.40d.dat"
+      ],
+      "output_mode": "scale_only",
+      "merge_order": [
+        "vis",
+        "nir"
+      ],
+      "reason": "auto: |\u0394MJD| <= 5.00 min"
+    },
+    {
+      "id": "suggested_009_mjd_57992.0000",
+      "members": [
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000001_Phase+9.40d.dat",
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000002_Phase+9.40d.dat",
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000003_Phase+9.40d.dat"
+      ],
+      "output_mode": "scale_only",
+      "merge_order": [
+        "uvb",
+        "vis",
+        "nir"
+      ],
+      "reason": "auto: |\u0394MJD| <= 5.00 min"
+    },
+    {
+      "id": "suggested_010_mjd_57993.0000",
+      "members": [
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000001_Phase+10.40d.dat",
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000002_Phase+10.40d.dat",
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000003_Phase+10.40d.dat"
+      ],
+      "output_mode": "scale_only",
+      "merge_order": [
+        "uvb",
+        "vis",
+        "nir"
+      ],
+      "reason": "auto: |\u0394MJD| <= 5.00 min"
+    }
+  ]
+}

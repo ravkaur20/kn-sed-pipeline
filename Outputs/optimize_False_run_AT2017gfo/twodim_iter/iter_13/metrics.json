@@ -1,0 +1,11 @@
+{
+  "iteration": 13,
+  "n_extractions": 38,
+  "n_skipped_extract": 1,
+  "n_remangled": 38,
+  "max_rel_phot_err": 500.7357732215346,
+  "median_rel_phot_err": 0.345062335330235,
+  "n_phot_points": 1227,
+  "delta_mask_rms": 0.017628967299032242,
+  "n_compared": 38
+}

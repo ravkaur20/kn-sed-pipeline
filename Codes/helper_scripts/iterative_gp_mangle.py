@@ -168,16 +168,19 @@ def compute_photometry_closure(
                 continue
             if photometry_target == "gp_fit":
                 target_col = "%s_fit_log_flux" % filt
+                inrange_col = "%s_inrange" % filt
                 if target_col not in row.index:
                     continue
                 target_log = float(row[target_col])
                 if not np.isfinite(target_log):
                     continue
+                if inrange_col in row.index and not bool(row[inrange_col]):
+                    continue
                 target_lin = np.power(10.0, target_log)
             else:
                 continue
             try:
-                _, _, syn, _, _, _ = band_flux_trapz(
+                _, _, syn, _, min_wls, max_wls = band_flux_trapz(
                     pre["wls"],
                     flux_lin,
                     pre["fluxerr"],
@@ -187,6 +190,10 @@ def compute_photometry_closure(
                     csp_sne=csp_sne,
                 )
             except Exception:
+                continue
+            wls_arr = np.asarray(pre["wls"], dtype=float)
+            overlap = (max_wls > np.min(wls_arr)) & (min_wls < np.max(wls_arr))
+            if not overlap or syn <= 0.0 or not np.isfinite(syn):
                 continue
             if target_lin > 0 and np.isfinite(syn):
                 rel_errors.append(abs(syn - target_lin) / target_lin)
@@ -685,6 +692,15 @@ def run_iterative_gp_mangle(
             "n_compared": 0,
         }
 
+        chi2_per_n = float("nan")
+        try:
+            from diagnostics.write_iter_gp_metrics import _residual_chi2_from_predictions
+
+            chi = _residual_chi2_from_predictions(gp_dir)
+            chi2_per_n = float(chi.get("chi2_per_n_total") or float("nan"))
+        except Exception:
+            pass
+
         iter_metrics = {
             "iteration": k,
             "n_extractions": len(extractions),
@@ -692,6 +708,7 @@ def run_iterative_gp_mangle(
             "n_remangled": len(new_masks),
             **phot_metrics,
             **mask_metrics,
+            "chi2_per_n_total": chi2_per_n,
         }
         with open(os.path.join(iter_dir, "metrics.json"), "w", encoding="utf-8") as fh:
             json.dump(iter_metrics, fh, indent=2)

@@ -1,0 +1,521 @@
+{
+  "snname": "AT2017gfo",
+  "default_output_mode": "scale_only",
+  "groups": [
+    {
+      "id": "suggested_001_mjd_57983.9690",
+      "output_mode": "scale_only",
+      "reference": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969003_Phase+1.43d.dat",
+      "chain_mode": false,
+      "star_bridge_fallback": true,
+      "scale_factors": {
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969003_Phase+1.43d.dat": 1.0,
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969002_Phase+1.43d.dat": 1.1771487419141895,
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969001_Phase+1.43d.dat": 0.9092416999286744
+      },
+      "pair_links": [
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969003_Phase+1.43d.dat",
+          "arm": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969002_Phase+1.43d.dat",
+          "factor": 1.1771487419141895,
+          "method": "overlap_wls",
+          "overlap_source": "smoothed",
+          "n_overlap": 11466,
+          "gap_a": -189.85360000000037,
+          "reason": ""
+        },
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969003_Phase+1.43d.dat",
+          "arm": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969001_Phase+1.43d.dat",
+          "factor": 0.9092416999286744,
+          "method": "overlap_wls",
+          "overlap_source": "smoothed",
+          "n_overlap": 21264,
+          "gap_a": -182.8060999999998,
+          "reason": ""
+        }
+      ],
+      "members": [
+        {
+          "file": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969003_Phase+1.43d.dat",
+          "factor": 1.0,
+          "output": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969003_Phase+1.43d.dat"
+        },
+        {
+          "file": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969002_Phase+1.43d.dat",
+          "factor": 1.1771487419141895,
+          "output": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969002_Phase+1.43d.dat"
+        },
+        {
+          "file": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969001_Phase+1.43d.dat",
+          "factor": 0.9092416999286744,
+          "output": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969001_Phase+1.43d.dat"
+        }
+      ]
+    },
+    {
+      "id": "suggested_002_mjd_57984.9690",
+      "output_mode": "scale_only",
+      "reference": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969003_Phase+2.42d.dat",
+      "chain_mode": false,
+      "star_bridge_fallback": true,
+      "scale_factors": {
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969003_Phase+2.42d.dat": 1.0,
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969002_Phase+2.42d.dat": 1.0885276948409004,
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969001_Phase+2.42d.dat": 0.8276554115285315
+      },
+      "pair_links": [
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969003_Phase+2.42d.dat",
+          "arm": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969002_Phase+2.42d.dat",
+          "factor": 1.0885276948409004,
+          "method": "overlap_wls",
+          "overlap_source": "smoothed",
+          "n_overlap": 11149,
+          "gap_a": -40.5646999999999,
+          "reason": ""
+        },
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969003_Phase+2.42d.dat",
+          "arm": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969001_Phase+2.42d.dat",
+          "factor": 0.8276554115285315,
+          "method": "overlap_wls",
+          "overlap_source": "smoothed",
+          "n_overlap": 22415,
+          "gap_a": -58.15560000000005,
+          "reason": ""
+        }
+      ],
+      "members": [
+        {
+          "file": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969003_Phase+2.42d.dat",
+          "factor": 1.0,
+          "output": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969003_Phase+2.42d.dat"
+        },
+        {
+          "file": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969002_Phase+2.42d.dat",
+          "factor": 1.0885276948409004,
+          "output": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969002_Phase+2.42d.dat"
+        },
+        {
+          "file": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969001_Phase+2.42d.dat",
+          "factor": 0.8276554115285315,
+          "output": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969001_Phase+2.42d.dat"
+        }
+      ]
+    },
+    {
+      "id": "suggested_003_mjd_57985.9740",
+      "output_mode": "scale_only",
+      "reference": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974003_Phase+3.41d.dat",
+      "chain_mode": false,
+      "star_bridge_fallback": true,
+      "scale_factors": {
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974003_Phase+3.41d.dat": 1.0,
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974002_Phase+3.41d.dat": 1.1001000354914925,
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974001_Phase+3.41d.dat": 0.9558992367668677
+      },
+      "pair_links": [
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974003_Phase+3.41d.dat",
+          "arm": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974002_Phase+3.41d.dat",
+          "factor": 1.1001000354914925,
+          "method": "overlap_wls",
+          "overlap_source": "smoothed",
+          "n_overlap": 10922,
+          "gap_a": -44.833300000000236,
+          "reason": ""
+        },
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974003_Phase+3.41d.dat",
+          "arm": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974001_Phase+3.41d.dat",
+          "factor": 0.9558992367668677,
+          "method": "overlap_wls",
+          "overlap_source": "smoothed",
+          "n_overlap": 23059,
+          "gap_a": -137.78950000000077,
+          "reason": ""
+        }
+      ],
+      "members": [
+        {
+          "file": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974003_Phase+3.41d.dat",
+          "factor": 1.0,
+          "output": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974003_Phase+3.41d.dat"
+        },
+        {
+          "file": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974002_Phase+3.41d.dat",
+          "factor": 1.1001000354914925,
+          "output": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974002_Phase+3.41d.dat"
+        },
+        {
+          "file": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974001_Phase+3.41d.dat",
+          "factor": 0.9558992367668677,
+          "output": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974001_Phase+3.41d.dat"
+        }
+      ]
+    },
+    {
+      "id": "suggested_004_mjd_57986.9740",
+      "output_mode": "scale_only",
+      "reference": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974003_Phase+4.40d.dat",
+      "chain_mode": false,
+      "star_bridge_fallback": true,
+      "scale_factors": {
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974003_Phase+4.40d.dat": 1.0,
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974002_Phase+4.40d.dat": 0.9335177680990278,
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974001_Phase+4.40d.dat": 1.0392797160205234
+      },
+      "pair_links": [
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974003_Phase+4.40d.dat",
+          "arm": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974002_Phase+4.40d.dat",
+          "factor": 0.9335177680990278,
+          "method": "overlap_wls",
+          "overlap_source": "smoothed",
+          "n_overlap": 10452,
+          "gap_a": -7.561399999999594,
+          "reason": ""
+        },
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974003_Phase+4.40d.dat",
+          "arm": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974001_Phase+4.40d.dat",
+          "factor": 1.0392797160205234,
+          "method": "overlap_wls",
+          "overlap_source": "smoothed",
+          "n_overlap": 19240,
+          "gap_a": -8.189300000000003,
+          "reason": ""
+        }
+      ],
+      "members": [
+        {
+          "file": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974003_Phase+4.40d.dat",
+          "factor": 1.0,
+          "output": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974003_Phase+4.40d.dat"
+        },
+        {
+          "file": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974002_Phase+4.40d.dat",
+          "factor": 0.9335177680990278,
+          "output": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974002_Phase+4.40d.dat"
+        },
+        {
+          "file": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974001_Phase+4.40d.dat",
+          "factor": 1.0392797160205234,
+          "output": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974001_Phase+4.40d.dat"
+        }
+      ]
+    },
+    {
+      "id": "suggested_005_mjd_57987.9800",
+      "output_mode": "scale_only",
+      "reference": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980001_Phase+5.40d.dat",
+      "chain_mode": false,
+      "star_bridge_fallback": true,
+      "scale_factors": {
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980001_Phase+5.40d.dat": 1.0,
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980002_Phase+5.40d.dat": 1.4128134737101126,
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980003_Phase+5.40d.dat": 1.0983501840467575
+      },
+      "pair_links": [
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980003_Phase+5.40d.dat",
+          "arm": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980002_Phase+5.40d.dat",
+          "factor": 1.4128134737101126,
+          "method": "gap_seam",
+          "overlap_source": "smoothed",
+          "n_overlap": 246,
+          "gap_a": 36.50910000000022,
+          "reason": "",
+          "fallback": "bridge",
+          "direct_ref": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980001_Phase+5.40d.dat",
+          "direct_method": "skip",
+          "direct_gap_a": 4483.4938999999995
+        },
+        {
+          "ref": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980001_Phase+5.40d.dat",
+          "arm": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980003_Phase+5.40d.dat",
+          "factor": 1.0983501840467575,
+          "method": "overlap_wls",
+          "overlap_source": "smoothed",
+          "n_overlap": 22690,
+          "gap_a": -116.71110000000044,
+          "reason": ""
+        }
+      ],
+      "members": [
+        {
+          "file": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980001_Phase+5.40d.dat",
+          "factor": 1.0,
+          "output": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980001_Phase+5.40d.dat"
+        },
+        {
+          "file": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980002_Phase+5.40d.dat",
+          "factor": 1.4128134737101126,
+          "output": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980002_Phase+5.40d.dat"
+        },
+        {
+          "file": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980003_Phase+5.40d.dat",
+          "factor": 1.0983501840467575,
+          "output": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980003_Phase+5.40d.dat"
+        }
+      ]
+    },
+    {
+      "id": "suggested_006_mjd_57988.9900",
+      "output_mode": "scale_only",
+      "reference": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990003_Phase+6.40d.dat",
+      "chain_mode": false,
+      "star_bridge_fallback": true,
+      "scale_factors": {
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990003_Phase+6.40d.dat": 1.0,
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990002_Phase+6.40d.dat": 1.212174422007609,
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990001_Phase+6.40d.dat": 0.7782202842885703
+      },
+      "pair_links": [
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990003_Phase+6.40d.dat",
+          "arm": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990002_Phase+6.40d.dat",
+          "factor": 1.212174422007609,
+          "method": "gap_seam",
+          "overlap_source": "smoothed",
+          "n_overlap": 241,
+          "gap_a": 37.01599999999962,
+          "reason": ""
+        },
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990003_Phase+6.40d.dat",
+          "arm": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990001_Phase+6.40d.dat",
+          "factor": 0.7782202842885703,
+          "method": "gap_seam",
+          "overlap_source": "smoothed",
+          "n_overlap": 84,
+          "gap_a": 105.3119999999999,
+          "reason": ""
+        }
+      ],
+      "members": [
+        {
+          "file": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990003_Phase+6.40d.dat",
+          "factor": 1.0,
+          "output": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990003_Phase+6.40d.dat"
+        },
+        {
+          "file": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990002_Phase+6.40d.dat",
+          "factor": 1.212174422007609,
+          "output": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990002_Phase+6.40d.dat"
+        },
+        {
+          "file": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990001_Phase+6.40d.dat",
+          "factor": 0.7782202842885703,
+          "output": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990001_Phase+6.40d.dat"
+        }
+      ]
+    },
+    {
+      "id": "suggested_007_mjd_57990.0000",
+      "output_mode": "scale_only",
+      "reference": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000003_Phase+7.40d.dat",
+      "chain_mode": false,
+      "star_bridge_fallback": true,
+      "scale_factors": {
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000003_Phase+7.40d.dat": 1.0,
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000002_Phase+7.40d.dat": 1.2127993334765317,
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000001_Phase+7.40d.dat": 0.8856491285225606
+      },
+      "pair_links": [
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000003_Phase+7.40d.dat",
+          "arm": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000002_Phase+7.40d.dat",
+          "factor": 1.2127993334765317,
+          "method": "gap_seam",
+          "overlap_source": "smoothed",
+          "n_overlap": 194,
+          "gap_a": 36.326100000000224,
+          "reason": ""
+        },
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000003_Phase+7.40d.dat",
+          "arm": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000001_Phase+7.40d.dat",
+          "factor": 0.8856491285225606,
+          "method": "gap_seam",
+          "overlap_source": "smoothed",
+          "n_overlap": 84,
+          "gap_a": 120.26090000000113,
+          "reason": ""
+        }
+      ],
+      "members": [
+        {
+          "file": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000003_Phase+7.40d.dat",
+          "factor": 1.0,
+          "output": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000003_Phase+7.40d.dat"
+        },
+        {
+          "file": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000002_Phase+7.40d.dat",
+          "factor": 1.2127993334765317,
+          "output": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000002_Phase+7.40d.dat"
+        },
+        {
+          "file": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000001_Phase+7.40d.dat",
+          "factor": 0.8856491285225606,
+          "output": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000001_Phase+7.40d.dat"
+        }
+      ]
+    },
+    {
+      "id": "suggested_008_mjd_57991.0000",
+      "output_mode": "scale_only",
+      "reference": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000003_Phase+8.40d.dat",
+      "chain_mode": false,
+      "star_bridge_fallback": true,
+      "scale_factors": {
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000003_Phase+8.40d.dat": 1.0,
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000001_Phase+8.40d.dat": 0.9683485528555951
+      },
+      "pair_links": [
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000003_Phase+8.40d.dat",
+          "arm": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000001_Phase+8.40d.dat",
+          "factor": 0.9683485528555951,
+          "method": "gap_seam",
+          "overlap_source": "smoothed",
+          "n_overlap": 78,
+          "gap_a": 341.6370999999999,
+          "reason": ""
+        }
+      ],
+      "members": [
+        {
+          "file": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000003_Phase+8.40d.dat",
+          "factor": 1.0,
+          "output": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000003_Phase+8.40d.dat"
+        },
+        {
+          "file": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000001_Phase+8.40d.dat",
+          "factor": 0.9683485528555951,
+          "output": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000001_Phase+8.40d.dat"
+        }
+      ]
+    },
+    {
+      "id": "suggested_009_mjd_57992.0000",
+      "output_mode": "scale_only",
+      "reference": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000003_Phase+9.40d.dat",
+      "chain_mode": false,
+      "star_bridge_fallback": true,
+      "scale_factors": {
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000003_Phase+9.40d.dat": 1.0,
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000002_Phase+9.40d.dat": 1.0829593187179931,
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000001_Phase+9.40d.dat": 0.9149938291816737
+      },
+      "pair_links": [
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000003_Phase+9.40d.dat",
+          "arm": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000002_Phase+9.40d.dat",
+          "factor": 1.0829593187179931,
+          "method": "gap_seam",
+          "overlap_source": "smoothed",
+          "n_overlap": 200,
+          "gap_a": 36.98700000000008,
+          "reason": ""
+        },
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000003_Phase+9.40d.dat",
+          "arm": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000001_Phase+9.40d.dat",
+          "factor": 0.9149938291816737,
+          "method": "gap_seam",
+          "overlap_source": "smoothed",
+          "n_overlap": 75,
+          "gap_a": 339.6862000000001,
+          "reason": ""
+        }
+      ],
+      "members": [
+        {
+          "file": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000003_Phase+9.40d.dat",
+          "factor": 1.0,
+          "output": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000003_Phase+9.40d.dat"
+        },
+        {
+          "file": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000002_Phase+9.40d.dat",
+          "factor": 1.0829593187179931,
+          "output": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000002_Phase+9.40d.dat"
+        },
+        {
+          "file": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000001_Phase+9.40d.dat",
+          "factor": 0.9149938291816737,
+          "output": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000001_Phase+9.40d.dat"
+        }
+      ]
+    },
+    {
+      "id": "suggested_010_mjd_57993.0000",
+      "output_mode": "scale_only",
+      "reference": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000001_Phase+10.40d.dat",
+      "chain_mode": false,
+      "star_bridge_fallback": true,
+      "scale_factors": {
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000001_Phase+10.40d.dat": 1.0,
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000002_Phase+10.40d.dat": 1.6468272924596492,
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000003_Phase+10.40d.dat": 0.7846159885889266
+      },
+      "pair_links": [
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000003_Phase+10.40d.dat",
+          "arm": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000002_Phase+10.40d.dat",
+          "factor": 1.6468272924596492,
+          "method": "gap_seam",
+          "overlap_source": "smoothed",
+          "n_overlap": 185,
+          "gap_a": 35.77009999999973,
+          "reason": "",
+          "fallback": "bridge",
+          "direct_ref": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000001_Phase+10.40d.dat",
+          "direct_method": "skip",
+          "direct_gap_a": 4640.138999999999
+        },
+        {
+          "ref": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000001_Phase+10.40d.dat",
+          "arm": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000003_Phase+10.40d.dat",
+          "factor": 0.7846159885889266,
+          "method": "gap_seam",
+          "overlap_source": "smoothed",
+          "n_overlap": 71,
+          "gap_a": 339.6761999999999,
+          "reason": ""
+        }
+      ],
+      "members": [
+        {
+          "file": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000001_Phase+10.40d.dat",
+          "factor": 1.0,
+          "output": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000001_Phase+10.40d.dat"
+        },
+        {
+          "file": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000002_Phase+10.40d.dat",
+          "factor": 1.6468272924596492,
+          "output": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000002_Phase+10.40d.dat"
+        },
+        {
+          "file": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000003_Phase+10.40d.dat",
+          "factor": 0.7846159885889266,
+          "output": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000003_Phase+10.40d.dat"
+        }
+      ]
+    }
+  ],
+  "ungrouped": [
+    "57983.01825_LDSS3_Magellan.dat",
+    "57983.02788_LDSS3_Magellan.dat",
+    "57983.0362_LDSS3_Magellan.dat",
+    "57983.05998_LDSS3_Magellan.dat",
+    "57983.9914_LDSS3_Magellan.dat",
+    "57984.0484_LDSS3_Magellan.dat",
+    "57985.99019_LDSS3_Magellan.dat",
+    "57987.03511_LDSS3_Magellan.dat",
+    "57989.98185_LDSS3_Magellan.dat",
+    "57990.98563_LDSS3_Magellan.dat"
+  ],
+  "prescaled_list": "/Users/ravkaur/Desktop/research/kilonova-SED/kn-sed-pipeline/Inputs/Spectroscopy/2_spec_lists_prescaled/AT2017gfo.list"
+}

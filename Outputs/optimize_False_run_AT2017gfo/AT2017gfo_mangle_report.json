@@ -1,0 +1,1168 @@
+{
+  "snname": "AT2017gfo",
+  "bundle_aware": true,
+  "spec_list": "/Users/ravkaur/Desktop/research/kilonova-SED/kn-sed-pipeline/Inputs/Spectroscopy/2_spec_lists_prescaled/AT2017gfo.list",
+  "groups": [
+    {
+      "id": "suggested_001_mjd_57983.9690",
+      "members": [
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969001_Phase+1.43d.dat",
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969002_Phase+1.43d.dat",
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969003_Phase+1.43d.dat"
+      ],
+      "merge_order": [
+        "uvb",
+        "vis",
+        "nir"
+      ],
+      "meta": {
+        "used_filters": [
+          "DECam_i",
+          "DECam_z",
+          "FLAMINGOS-2_Ks",
+          "FourStar_H",
+          "FourStar_J",
+          "FourStar_Ks",
+          "GFC_i",
+          "GFC_y",
+          "GFC_z",
+          "GROND_H",
+          "GROND_J",
+          "GROND_K",
+          "GROND_g",
+          "GROND_i",
+          "GROND_r",
+          "GROND_z",
+          "HSC_z",
+          "SIRIUS_H",
+          "SIRIUS_J",
+          "SIRIUS_Ks",
+          "Sinistro_g",
+          "Sinistro_r",
+          "Skymapper_g",
+          "Skymapper_i",
+          "Skymapper_r",
+          "Swope_i",
+          "T80Cam_g",
+          "UVOT_U",
+          "VISTA_J",
+          "VISTA_Ks",
+          "VISTA_Y"
+        ],
+        "mode_for_filter": {
+          "DECam_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969003_Phase+1.43d.dat",
+          "DECam_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969003_Phase+1.43d.dat",
+          "FLAMINGOS-2_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969001_Phase+1.43d.dat",
+          "FourStar_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969001_Phase+1.43d.dat",
+          "FourStar_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969001_Phase+1.43d.dat",
+          "FourStar_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969001_Phase+1.43d.dat",
+          "GFC_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969003_Phase+1.43d.dat",
+          "GFC_y": "stitched",
+          "GFC_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969003_Phase+1.43d.dat",
+          "GROND_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969001_Phase+1.43d.dat",
+          "GROND_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969001_Phase+1.43d.dat",
+          "GROND_K": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969001_Phase+1.43d.dat",
+          "GROND_g": "stitched",
+          "GROND_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969003_Phase+1.43d.dat",
+          "GROND_r": "stitched",
+          "GROND_z": "stitched",
+          "HSC_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969003_Phase+1.43d.dat",
+          "SIRIUS_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969001_Phase+1.43d.dat",
+          "SIRIUS_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969001_Phase+1.43d.dat",
+          "SIRIUS_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969001_Phase+1.43d.dat",
+          "Sinistro_g": "stitched",
+          "Sinistro_r": "stitched",
+          "Skymapper_g": "stitched",
+          "Skymapper_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969003_Phase+1.43d.dat",
+          "Skymapper_r": "stitched",
+          "Swope_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969003_Phase+1.43d.dat",
+          "T80Cam_g": "best_arm:UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969002_Phase+1.43d.dat",
+          "UVOT_U": "best_arm:UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969002_Phase+1.43d.dat",
+          "VISTA_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969001_Phase+1.43d.dat",
+          "VISTA_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969001_Phase+1.43d.dat",
+          "VISTA_Y": "stitched"
+        },
+        "n_filters": 31,
+        "bundle_mode": true,
+        "use_gp_wavelength_grid": false,
+        "stitch_synphot": true,
+        "norm_diff": 0.18727999517552973,
+        "n_constraints": 31
+      },
+      "seam_qa": [
+        {
+          "ref": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969002_Phase+1.43d.dat",
+          "arm": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969003_Phase+1.43d.dat",
+          "seam_jump_log10": 0.07852400109388213,
+          "gap_a": 0.0,
+          "prescale_jump": 0.07294340477407779,
+          "regression_flag": false
+        },
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969003_Phase+1.43d.dat",
+          "arm": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969001_Phase+1.43d.dat",
+          "seam_jump_log10": 0.034173561240463,
+          "gap_a": 0.0,
+          "prescale_jump": 0.0263729921563165,
+          "regression_flag": false
+        }
+      ]
+    },
+    {
+      "id": "suggested_002_mjd_57984.9690",
+      "members": [
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969001_Phase+2.42d.dat",
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969002_Phase+2.42d.dat",
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969003_Phase+2.42d.dat"
+      ],
+      "merge_order": [
+        "uvb",
+        "vis",
+        "nir"
+      ],
+      "meta": {
+        "used_filters": [
+          "DECam_Y",
+          "DECam_g",
+          "DECam_i",
+          "DECam_r",
+          "DECam_u",
+          "DECam_z",
+          "FLAMINGOS-2_H",
+          "FLAMINGOS-2_Ks",
+          "FourStar_H",
+          "FourStar_J",
+          "FourStar_J1",
+          "FourStar_Ks",
+          "GFC_i",
+          "GFC_y",
+          "GFC_z",
+          "GROND_H",
+          "GROND_J",
+          "GROND_K",
+          "GROND_g",
+          "GROND_i",
+          "GROND_r",
+          "GROND_z",
+          "HSC_z",
+          "SIRIUS_H",
+          "SIRIUS_J",
+          "SIRIUS_Ks",
+          "Sinistro_V",
+          "Sinistro_g",
+          "Sinistro_i",
+          "Sinistro_r",
+          "Sinistro_z",
+          "Skymapper_g",
+          "Skymapper_r",
+          "Swope_B",
+          "Swope_g",
+          "Swope_i",
+          "Swope_r",
+          "VISTA_J",
+          "VISTA_Ks",
+          "VISTA_Y"
+        ],
+        "mode_for_filter": {
+          "DECam_Y": "stitched",
+          "DECam_g": "best_arm:UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969002_Phase+2.42d.dat",
+          "DECam_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969003_Phase+2.42d.dat",
+          "DECam_r": "stitched",
+          "DECam_u": "best_arm:UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969002_Phase+2.42d.dat",
+          "DECam_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969003_Phase+2.42d.dat",
+          "FLAMINGOS-2_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969001_Phase+2.42d.dat",
+          "FLAMINGOS-2_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969001_Phase+2.42d.dat",
+          "FourStar_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969001_Phase+2.42d.dat",
+          "FourStar_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969001_Phase+2.42d.dat",
+          "FourStar_J1": "stitched",
+          "FourStar_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969001_Phase+2.42d.dat",
+          "GFC_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969003_Phase+2.42d.dat",
+          "GFC_y": "stitched",
+          "GFC_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969003_Phase+2.42d.dat",
+          "GROND_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969001_Phase+2.42d.dat",
+          "GROND_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969001_Phase+2.42d.dat",
+          "GROND_K": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969001_Phase+2.42d.dat",
+          "GROND_g": "stitched",
+          "GROND_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969003_Phase+2.42d.dat",
+          "GROND_r": "stitched",
+          "GROND_z": "stitched",
+          "HSC_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969003_Phase+2.42d.dat",
+          "SIRIUS_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969001_Phase+2.42d.dat",
+          "SIRIUS_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969001_Phase+2.42d.dat",
+          "SIRIUS_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969001_Phase+2.42d.dat",
+          "Sinistro_V": "stitched",
+          "Sinistro_g": "stitched",
+          "Sinistro_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969003_Phase+2.42d.dat",
+          "Sinistro_r": "stitched",
+          "Sinistro_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969003_Phase+2.42d.dat",
+          "Skymapper_g": "stitched",
+          "Skymapper_r": "stitched",
+          "Swope_B": "stitched",
+          "Swope_g": "stitched",
+          "Swope_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969003_Phase+2.42d.dat",
+          "Swope_r": "stitched",
+          "VISTA_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969001_Phase+2.42d.dat",
+          "VISTA_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969001_Phase+2.42d.dat",
+          "VISTA_Y": "stitched"
+        },
+        "n_filters": 40,
+        "bundle_mode": true,
+        "use_gp_wavelength_grid": false,
+        "stitch_synphot": true,
+        "norm_diff": 0.21351809174273217,
+        "n_constraints": 40
+      },
+      "seam_qa": [
+        {
+          "ref": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969002_Phase+2.42d.dat",
+          "arm": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969003_Phase+2.42d.dat",
+          "seam_jump_log10": 0.005547890532412225,
+          "gap_a": 0.0,
+          "prescale_jump": 0.003920570653679789,
+          "regression_flag": false
+        },
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969003_Phase+2.42d.dat",
+          "arm": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969001_Phase+2.42d.dat",
+          "seam_jump_log10": 0.003686243781952925,
+          "gap_a": 0.0,
+          "prescale_jump": 0.005356771120396786,
+          "regression_flag": false
+        }
+      ]
+    },
+    {
+      "id": "suggested_003_mjd_57985.9740",
+      "members": [
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974001_Phase+3.41d.dat",
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974002_Phase+3.41d.dat",
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974003_Phase+3.41d.dat"
+      ],
+      "merge_order": [
+        "uvb",
+        "vis",
+        "nir"
+      ],
+      "meta": {
+        "used_filters": [
+          "DECam_Y",
+          "DECam_g",
+          "DECam_i",
+          "DECam_r",
+          "DECam_u",
+          "DECam_z",
+          "FLAMINGOS-2_H",
+          "FLAMINGOS-2_J",
+          "FLAMINGOS-2_Ks",
+          "FourStar_Ks",
+          "GFC_y",
+          "GFC_z",
+          "GROND_H",
+          "GROND_J",
+          "GROND_K",
+          "GROND_g",
+          "GROND_i",
+          "GROND_r",
+          "GROND_z",
+          "HSC_z",
+          "SIRIUS_H",
+          "SIRIUS_J",
+          "SIRIUS_Ks",
+          "Sinistro_r",
+          "Swope_B",
+          "Swope_g",
+          "Swope_i",
+          "Swope_r",
+          "VISTA_J",
+          "VISTA_Ks",
+          "VISTA_Y"
+        ],
+        "mode_for_filter": {
+          "DECam_Y": "stitched",
+          "DECam_g": "best_arm:UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974002_Phase+3.41d.dat",
+          "DECam_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974003_Phase+3.41d.dat",
+          "DECam_r": "stitched",
+          "DECam_u": "best_arm:UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974002_Phase+3.41d.dat",
+          "DECam_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974003_Phase+3.41d.dat",
+          "FLAMINGOS-2_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974001_Phase+3.41d.dat",
+          "FLAMINGOS-2_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974001_Phase+3.41d.dat",
+          "FLAMINGOS-2_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974001_Phase+3.41d.dat",
+          "FourStar_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974001_Phase+3.41d.dat",
+          "GFC_y": "stitched",
+          "GFC_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974003_Phase+3.41d.dat",
+          "GROND_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974001_Phase+3.41d.dat",
+          "GROND_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974001_Phase+3.41d.dat",
+          "GROND_K": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974001_Phase+3.41d.dat",
+          "GROND_g": "stitched",
+          "GROND_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974003_Phase+3.41d.dat",
+          "GROND_r": "stitched",
+          "GROND_z": "stitched",
+          "HSC_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974003_Phase+3.41d.dat",
+          "SIRIUS_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974001_Phase+3.41d.dat",
+          "SIRIUS_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974001_Phase+3.41d.dat",
+          "SIRIUS_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974001_Phase+3.41d.dat",
+          "Sinistro_r": "stitched",
+          "Swope_B": "stitched",
+          "Swope_g": "stitched",
+          "Swope_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974003_Phase+3.41d.dat",
+          "Swope_r": "stitched",
+          "VISTA_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974001_Phase+3.41d.dat",
+          "VISTA_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974001_Phase+3.41d.dat",
+          "VISTA_Y": "stitched"
+        },
+        "n_filters": 31,
+        "bundle_mode": true,
+        "use_gp_wavelength_grid": false,
+        "stitch_synphot": true,
+        "norm_diff": 0.14314791770884483,
+        "n_constraints": 31
+      },
+      "seam_qa": [
+        {
+          "ref": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974002_Phase+3.41d.dat",
+          "arm": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974003_Phase+3.41d.dat",
+          "seam_jump_log10": 0.0030632971625266237,
+          "gap_a": 0.0,
+          "prescale_jump": 0.0014743832079986419,
+          "regression_flag": true
+        },
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974003_Phase+3.41d.dat",
+          "arm": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974001_Phase+3.41d.dat",
+          "seam_jump_log10": 0.004680691640402301,
+          "gap_a": 0.0,
+          "prescale_jump": 0.001958830177308357,
+          "regression_flag": true
+        }
+      ]
+    },
+    {
+      "id": "suggested_004_mjd_57986.9740",
+      "members": [
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974001_Phase+4.40d.dat",
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974002_Phase+4.40d.dat",
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974003_Phase+4.40d.dat"
+      ],
+      "merge_order": [
+        "uvb",
+        "vis",
+        "nir"
+      ],
+      "meta": {
+        "used_filters": [
+          "DECam_Y",
+          "DECam_g",
+          "DECam_i",
+          "DECam_r",
+          "DECam_z",
+          "FLAMINGOS-2_H",
+          "FLAMINGOS-2_J",
+          "FLAMINGOS-2_Ks",
+          "FORS2_R",
+          "FourStar_Ks",
+          "GFC_y",
+          "GMOS_i",
+          "GMOS_r",
+          "GROND_H",
+          "GROND_J",
+          "GROND_K",
+          "HSC_z",
+          "SIRIUS_H",
+          "SIRIUS_J",
+          "SIRIUS_Ks",
+          "Sinistro_r",
+          "Swope_g",
+          "Swope_i",
+          "Swope_r",
+          "VISTA_J",
+          "VISTA_Ks",
+          "VISTA_Y"
+        ],
+        "mode_for_filter": {
+          "DECam_Y": "stitched",
+          "DECam_g": "best_arm:UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974002_Phase+4.40d.dat",
+          "DECam_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974003_Phase+4.40d.dat",
+          "DECam_r": "stitched",
+          "DECam_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974003_Phase+4.40d.dat",
+          "FLAMINGOS-2_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974001_Phase+4.40d.dat",
+          "FLAMINGOS-2_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974001_Phase+4.40d.dat",
+          "FLAMINGOS-2_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974001_Phase+4.40d.dat",
+          "FORS2_R": "stitched",
+          "FourStar_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974001_Phase+4.40d.dat",
+          "GFC_y": "stitched",
+          "GMOS_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974003_Phase+4.40d.dat",
+          "GMOS_r": "stitched",
+          "GROND_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974001_Phase+4.40d.dat",
+          "GROND_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974001_Phase+4.40d.dat",
+          "GROND_K": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974001_Phase+4.40d.dat",
+          "HSC_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974003_Phase+4.40d.dat",
+          "SIRIUS_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974001_Phase+4.40d.dat",
+          "SIRIUS_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974001_Phase+4.40d.dat",
+          "SIRIUS_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974001_Phase+4.40d.dat",
+          "Sinistro_r": "stitched",
+          "Swope_g": "stitched",
+          "Swope_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974003_Phase+4.40d.dat",
+          "Swope_r": "stitched",
+          "VISTA_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974001_Phase+4.40d.dat",
+          "VISTA_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974001_Phase+4.40d.dat",
+          "VISTA_Y": "stitched"
+        },
+        "n_filters": 27,
+        "bundle_mode": true,
+        "use_gp_wavelength_grid": false,
+        "stitch_synphot": true,
+        "norm_diff": 0.13112105641192429,
+        "n_constraints": 27
+      },
+      "seam_qa": [
+        {
+          "ref": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974002_Phase+4.40d.dat",
+          "arm": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974003_Phase+4.40d.dat",
+          "seam_jump_log10": 0.028484931149272086,
+          "gap_a": 0.0,
+          "prescale_jump": 0.026389814469180095,
+          "regression_flag": false
+        },
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974003_Phase+4.40d.dat",
+          "arm": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974001_Phase+4.40d.dat",
+          "seam_jump_log10": 0.03219200517074938,
+          "gap_a": 0.0,
+          "prescale_jump": 0.0324885419932599,
+          "regression_flag": false
+        }
+      ]
+    },
+    {
+      "id": "suggested_005_mjd_57987.9800",
+      "members": [
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980001_Phase+5.40d.dat",
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980002_Phase+5.40d.dat",
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980003_Phase+5.40d.dat"
+      ],
+      "merge_order": [
+        "uvb",
+        "vis",
+        "nir"
+      ],
+      "meta": {
+        "used_filters": [
+          "DECam_Y",
+          "DECam_g",
+          "DECam_i",
+          "DECam_r",
+          "DECam_z",
+          "FLAMINGOS-2_H",
+          "FLAMINGOS-2_J",
+          "FLAMINGOS-2_Ks",
+          "FORS2_B",
+          "FORS2_I",
+          "FORS2_R",
+          "FORS2_V",
+          "FourStar_Ks",
+          "GFC_y",
+          "GMOS_i",
+          "GMOS_r",
+          "GROND_H",
+          "GROND_J",
+          "GROND_K",
+          "HSC_z",
+          "SIRIUS_H",
+          "SIRIUS_J",
+          "SIRIUS_Ks",
+          "Swope_i",
+          "VIMOS_z",
+          "VISTA_J",
+          "VISTA_Ks",
+          "VISTA_Y"
+        ],
+        "mode_for_filter": {
+          "DECam_Y": "stitched",
+          "DECam_g": "best_arm:UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980002_Phase+5.40d.dat",
+          "DECam_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980003_Phase+5.40d.dat",
+          "DECam_r": "stitched",
+          "DECam_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980003_Phase+5.40d.dat",
+          "FLAMINGOS-2_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980001_Phase+5.40d.dat",
+          "FLAMINGOS-2_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980001_Phase+5.40d.dat",
+          "FLAMINGOS-2_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980001_Phase+5.40d.dat",
+          "FORS2_B": "best_arm:UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980002_Phase+5.40d.dat",
+          "FORS2_I": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980003_Phase+5.40d.dat",
+          "FORS2_R": "stitched",
+          "FORS2_V": "stitched",
+          "FourStar_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980001_Phase+5.40d.dat",
+          "GFC_y": "stitched",
+          "GMOS_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980003_Phase+5.40d.dat",
+          "GMOS_r": "stitched",
+          "GROND_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980001_Phase+5.40d.dat",
+          "GROND_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980001_Phase+5.40d.dat",
+          "GROND_K": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980001_Phase+5.40d.dat",
+          "HSC_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980003_Phase+5.40d.dat",
+          "SIRIUS_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980001_Phase+5.40d.dat",
+          "SIRIUS_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980001_Phase+5.40d.dat",
+          "SIRIUS_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980001_Phase+5.40d.dat",
+          "Swope_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980003_Phase+5.40d.dat",
+          "VIMOS_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980003_Phase+5.40d.dat",
+          "VISTA_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980001_Phase+5.40d.dat",
+          "VISTA_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980001_Phase+5.40d.dat",
+          "VISTA_Y": "stitched"
+        },
+        "n_filters": 28,
+        "bundle_mode": true,
+        "use_gp_wavelength_grid": false,
+        "stitch_synphot": true,
+        "norm_diff": 0.02863148999611198,
+        "n_constraints": 28
+      },
+      "seam_qa": [
+        {
+          "ref": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980002_Phase+5.40d.dat",
+          "arm": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980003_Phase+5.40d.dat",
+          "seam_jump_log10": 8.778519500651782e-06,
+          "gap_a": 36.509000000000015,
+          "prescale_jump": 1.2988147091164137e-07,
+          "regression_flag": true
+        },
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980003_Phase+5.40d.dat",
+          "arm": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57987.980001_Phase+5.40d.dat",
+          "seam_jump_log10": 0.017870174903663383,
+          "gap_a": 0.0,
+          "prescale_jump": 0.02032063390323202,
+          "regression_flag": false
+        }
+      ]
+    },
+    {
+      "id": "suggested_006_mjd_57988.9900",
+      "members": [
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990001_Phase+6.40d.dat",
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990002_Phase+6.40d.dat",
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990003_Phase+6.40d.dat"
+      ],
+      "merge_order": [
+        "uvb",
+        "vis",
+        "nir"
+      ],
+      "meta": {
+        "used_filters": [
+          "DECam_Y",
+          "DECam_g",
+          "DECam_i",
+          "DECam_r",
+          "DECam_z",
+          "FLAMINGOS-2_H",
+          "FLAMINGOS-2_J",
+          "FLAMINGOS-2_Ks",
+          "FORS2_B",
+          "FORS2_I",
+          "FORS2_R",
+          "FORS2_V",
+          "FourStar_Ks",
+          "GFC_y",
+          "GMOS_i",
+          "GMOS_r",
+          "GROND_H",
+          "GROND_J",
+          "GROND_K",
+          "HSC_z",
+          "SIRIUS_H",
+          "SIRIUS_J",
+          "SIRIUS_Ks",
+          "Swope_i",
+          "VIMOS_z",
+          "VISTA_J",
+          "VISTA_Ks",
+          "VISTA_Y"
+        ],
+        "mode_for_filter": {
+          "DECam_Y": "stitched",
+          "DECam_g": "best_arm:UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990002_Phase+6.40d.dat",
+          "DECam_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990003_Phase+6.40d.dat",
+          "DECam_r": "stitched",
+          "DECam_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990003_Phase+6.40d.dat",
+          "FLAMINGOS-2_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990001_Phase+6.40d.dat",
+          "FLAMINGOS-2_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990001_Phase+6.40d.dat",
+          "FLAMINGOS-2_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990001_Phase+6.40d.dat",
+          "FORS2_B": "best_arm:UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990002_Phase+6.40d.dat",
+          "FORS2_I": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990003_Phase+6.40d.dat",
+          "FORS2_R": "stitched",
+          "FORS2_V": "stitched",
+          "FourStar_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990001_Phase+6.40d.dat",
+          "GFC_y": "stitched",
+          "GMOS_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990003_Phase+6.40d.dat",
+          "GMOS_r": "stitched",
+          "GROND_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990001_Phase+6.40d.dat",
+          "GROND_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990001_Phase+6.40d.dat",
+          "GROND_K": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990001_Phase+6.40d.dat",
+          "HSC_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990003_Phase+6.40d.dat",
+          "SIRIUS_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990001_Phase+6.40d.dat",
+          "SIRIUS_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990001_Phase+6.40d.dat",
+          "SIRIUS_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990001_Phase+6.40d.dat",
+          "Swope_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990003_Phase+6.40d.dat",
+          "VIMOS_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990003_Phase+6.40d.dat",
+          "VISTA_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990001_Phase+6.40d.dat",
+          "VISTA_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990001_Phase+6.40d.dat",
+          "VISTA_Y": "stitched"
+        },
+        "n_filters": 28,
+        "bundle_mode": true,
+        "use_gp_wavelength_grid": false,
+        "stitch_synphot": true,
+        "norm_diff": 0.12332194597760626,
+        "n_constraints": 28
+      },
+      "seam_qa": [
+        {
+          "ref": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990002_Phase+6.40d.dat",
+          "arm": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990003_Phase+6.40d.dat",
+          "seam_jump_log10": 0.006894774072115695,
+          "gap_a": 37.01599999999962,
+          "prescale_jump": 0.0,
+          "regression_flag": false
+        },
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990003_Phase+6.40d.dat",
+          "arm": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57988.990001_Phase+6.40d.dat",
+          "seam_jump_log10": 0.008189420409522086,
+          "gap_a": 105.30999999999949,
+          "prescale_jump": 4.353399418732806e-09,
+          "regression_flag": true
+        }
+      ]
+    },
+    {
+      "id": "suggested_007_mjd_57990.0000",
+      "members": [
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000001_Phase+7.40d.dat",
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000002_Phase+7.40d.dat",
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000003_Phase+7.40d.dat"
+      ],
+      "merge_order": [
+        "uvb",
+        "vis",
+        "nir"
+      ],
+      "meta": {
+        "used_filters": [
+          "ANDICAM_K",
+          "DECam_Y",
+          "DECam_i",
+          "DECam_r",
+          "DECam_z",
+          "FLAMINGOS-2_H",
+          "FLAMINGOS-2_J",
+          "FLAMINGOS-2_Ks",
+          "FORS2_I",
+          "FORS2_R",
+          "FORS2_V",
+          "FourStar_Ks",
+          "GMOS_i",
+          "GMOS_r",
+          "GROND_H",
+          "GROND_J",
+          "GROND_K",
+          "HSC_z",
+          "SIRIUS_H",
+          "SIRIUS_Ks",
+          "VIMOS_z",
+          "VISTA_J",
+          "VISTA_Ks",
+          "VISTA_Y"
+        ],
+        "mode_for_filter": {
+          "ANDICAM_K": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000001_Phase+7.40d.dat",
+          "DECam_Y": "stitched",
+          "DECam_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000003_Phase+7.40d.dat",
+          "DECam_r": "stitched",
+          "DECam_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000003_Phase+7.40d.dat",
+          "FLAMINGOS-2_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000001_Phase+7.40d.dat",
+          "FLAMINGOS-2_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000001_Phase+7.40d.dat",
+          "FLAMINGOS-2_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000001_Phase+7.40d.dat",
+          "FORS2_I": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000003_Phase+7.40d.dat",
+          "FORS2_R": "stitched",
+          "FORS2_V": "stitched",
+          "FourStar_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000001_Phase+7.40d.dat",
+          "GMOS_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000003_Phase+7.40d.dat",
+          "GMOS_r": "stitched",
+          "GROND_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000001_Phase+7.40d.dat",
+          "GROND_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000001_Phase+7.40d.dat",
+          "GROND_K": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000001_Phase+7.40d.dat",
+          "HSC_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000003_Phase+7.40d.dat",
+          "SIRIUS_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000001_Phase+7.40d.dat",
+          "SIRIUS_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000001_Phase+7.40d.dat",
+          "VIMOS_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000003_Phase+7.40d.dat",
+          "VISTA_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000001_Phase+7.40d.dat",
+          "VISTA_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000001_Phase+7.40d.dat",
+          "VISTA_Y": "stitched"
+        },
+        "n_filters": 24,
+        "bundle_mode": true,
+        "use_gp_wavelength_grid": false,
+        "stitch_synphot": true,
+        "norm_diff": 0.11854458057248429,
+        "n_constraints": 24
+      },
+      "seam_qa": [
+        {
+          "ref": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000002_Phase+7.40d.dat",
+          "arm": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000003_Phase+7.40d.dat",
+          "seam_jump_log10": 0.0028337742437685165,
+          "gap_a": 36.32600000000002,
+          "prescale_jump": 2.4401764875392473e-07,
+          "regression_flag": true
+        },
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000003_Phase+7.40d.dat",
+          "arm": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57990.000001_Phase+7.40d.dat",
+          "seam_jump_log10": 0.004680602478476459,
+          "gap_a": 120.26000000000022,
+          "prescale_jump": 2.5570514594619453e-09,
+          "regression_flag": true
+        }
+      ]
+    },
+    {
+      "id": "suggested_008_mjd_57991.0000",
+      "members": [
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000001_Phase+8.40d.dat",
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000003_Phase+8.40d.dat"
+      ],
+      "merge_order": [
+        "vis",
+        "nir"
+      ],
+      "meta": {
+        "used_filters": [
+          "ANDICAM_K",
+          "DECam_Y",
+          "DECam_i",
+          "DECam_z",
+          "FLAMINGOS-2_H",
+          "FLAMINGOS-2_J",
+          "FLAMINGOS-2_Ks",
+          "FORS2_I",
+          "FORS2_R",
+          "FORS2_V",
+          "FourStar_Ks",
+          "GROND_H",
+          "GROND_J",
+          "GROND_K",
+          "SIRIUS_H",
+          "SIRIUS_Ks",
+          "VIMOS_z",
+          "VISTA_J",
+          "VISTA_Ks",
+          "VISTA_Y"
+        ],
+        "mode_for_filter": {
+          "ANDICAM_K": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000001_Phase+8.40d.dat",
+          "DECam_Y": "stitched",
+          "DECam_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000003_Phase+8.40d.dat",
+          "DECam_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000003_Phase+8.40d.dat",
+          "FLAMINGOS-2_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000001_Phase+8.40d.dat",
+          "FLAMINGOS-2_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000001_Phase+8.40d.dat",
+          "FLAMINGOS-2_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000001_Phase+8.40d.dat",
+          "FORS2_I": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000003_Phase+8.40d.dat",
+          "FORS2_R": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000003_Phase+8.40d.dat",
+          "FORS2_V": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000003_Phase+8.40d.dat",
+          "FourStar_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000001_Phase+8.40d.dat",
+          "GROND_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000001_Phase+8.40d.dat",
+          "GROND_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000001_Phase+8.40d.dat",
+          "GROND_K": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000001_Phase+8.40d.dat",
+          "SIRIUS_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000001_Phase+8.40d.dat",
+          "SIRIUS_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000001_Phase+8.40d.dat",
+          "VIMOS_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000003_Phase+8.40d.dat",
+          "VISTA_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000001_Phase+8.40d.dat",
+          "VISTA_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000001_Phase+8.40d.dat",
+          "VISTA_Y": "stitched"
+        },
+        "n_filters": 20,
+        "bundle_mode": true,
+        "use_gp_wavelength_grid": false,
+        "stitch_synphot": true,
+        "norm_diff": 0.11963632971721694,
+        "n_constraints": 20
+      },
+      "seam_qa": [
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000003_Phase+8.40d.dat",
+          "arm": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57991.000001_Phase+8.40d.dat",
+          "seam_jump_log10": 0.007696400102464196,
+          "gap_a": 341.6350000000002,
+          "prescale_jump": 1.1744035077754233e-08,
+          "regression_flag": true
+        }
+      ]
+    },
+    {
+      "id": "suggested_009_mjd_57992.0000",
+      "members": [
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000001_Phase+9.40d.dat",
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000002_Phase+9.40d.dat",
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000003_Phase+9.40d.dat"
+      ],
+      "merge_order": [
+        "uvb",
+        "vis",
+        "nir"
+      ],
+      "meta": {
+        "used_filters": [
+          "ANDICAM_K",
+          "DECam_Y",
+          "DECam_i",
+          "DECam_z",
+          "FLAMINGOS-2_H",
+          "FLAMINGOS-2_J",
+          "FLAMINGOS-2_Ks",
+          "FORS2_I",
+          "FORS2_R",
+          "FORS2_V",
+          "FourStar_Ks",
+          "GROND_H",
+          "GROND_K",
+          "SIRIUS_H",
+          "SIRIUS_Ks",
+          "VIMOS_z",
+          "VISTA_J",
+          "VISTA_Ks"
+        ],
+        "mode_for_filter": {
+          "ANDICAM_K": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000001_Phase+9.40d.dat",
+          "DECam_Y": "stitched",
+          "DECam_i": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000003_Phase+9.40d.dat",
+          "DECam_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000003_Phase+9.40d.dat",
+          "FLAMINGOS-2_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000001_Phase+9.40d.dat",
+          "FLAMINGOS-2_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000001_Phase+9.40d.dat",
+          "FLAMINGOS-2_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000001_Phase+9.40d.dat",
+          "FORS2_I": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000003_Phase+9.40d.dat",
+          "FORS2_R": "stitched",
+          "FORS2_V": "stitched",
+          "FourStar_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000001_Phase+9.40d.dat",
+          "GROND_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000001_Phase+9.40d.dat",
+          "GROND_K": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000001_Phase+9.40d.dat",
+          "SIRIUS_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000001_Phase+9.40d.dat",
+          "SIRIUS_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000001_Phase+9.40d.dat",
+          "VIMOS_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000003_Phase+9.40d.dat",
+          "VISTA_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000001_Phase+9.40d.dat",
+          "VISTA_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000001_Phase+9.40d.dat"
+        },
+        "n_filters": 18,
+        "bundle_mode": true,
+        "use_gp_wavelength_grid": false,
+        "stitch_synphot": true,
+        "norm_diff": 0.1451648940661201,
+        "n_constraints": 18
+      },
+      "seam_qa": [
+        {
+          "ref": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000002_Phase+9.40d.dat",
+          "arm": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000003_Phase+9.40d.dat",
+          "seam_jump_log10": 0.010404731411952639,
+          "gap_a": 36.98700000000008,
+          "prescale_jump": 2.2013999512182636e-09,
+          "regression_flag": true
+        },
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000003_Phase+9.40d.dat",
+          "arm": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57992.000001_Phase+9.40d.dat",
+          "seam_jump_log10": 0.010219178751111002,
+          "gap_a": 339.6840000000011,
+          "prescale_jump": 0.0,
+          "regression_flag": false
+        }
+      ]
+    },
+    {
+      "id": "suggested_010_mjd_57993.0000",
+      "members": [
+        "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000001_Phase+10.40d.dat",
+        "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000002_Phase+10.40d.dat",
+        "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000003_Phase+10.40d.dat"
+      ],
+      "merge_order": [
+        "uvb",
+        "vis",
+        "nir"
+      ],
+      "meta": {
+        "used_filters": [
+          "FLAMINGOS-2_H",
+          "FLAMINGOS-2_J",
+          "FLAMINGOS-2_Ks",
+          "FORS2_I",
+          "FORS2_R",
+          "FORS2_V",
+          "FourStar_Ks",
+          "GROND_H",
+          "GROND_K",
+          "SIRIUS_H",
+          "SIRIUS_Ks",
+          "VIMOS_z",
+          "VISTA_J",
+          "VISTA_Ks"
+        ],
+        "mode_for_filter": {
+          "FLAMINGOS-2_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000001_Phase+10.40d.dat",
+          "FLAMINGOS-2_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000001_Phase+10.40d.dat",
+          "FLAMINGOS-2_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000001_Phase+10.40d.dat",
+          "FORS2_I": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000003_Phase+10.40d.dat",
+          "FORS2_R": "stitched",
+          "FORS2_V": "stitched",
+          "FourStar_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000001_Phase+10.40d.dat",
+          "GROND_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000001_Phase+10.40d.dat",
+          "GROND_K": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000001_Phase+10.40d.dat",
+          "SIRIUS_H": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000001_Phase+10.40d.dat",
+          "SIRIUS_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000001_Phase+10.40d.dat",
+          "VIMOS_z": "best_arm:VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000003_Phase+10.40d.dat",
+          "VISTA_J": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000001_Phase+10.40d.dat",
+          "VISTA_Ks": "best_arm:NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000001_Phase+10.40d.dat"
+        },
+        "n_filters": 14,
+        "bundle_mode": true,
+        "use_gp_wavelength_grid": false,
+        "stitch_synphot": true,
+        "norm_diff": 0.1186159214641993,
+        "n_constraints": 14
+      },
+      "seam_qa": [
+        {
+          "ref": "UVB_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000002_Phase+10.40d.dat",
+          "arm": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000003_Phase+10.40d.dat",
+          "seam_jump_log10": 0.007446983177512578,
+          "gap_a": 35.76999999999953,
+          "prescale_jump": 0.0,
+          "regression_flag": false
+        },
+        {
+          "ref": "VIS_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000003_Phase+10.40d.dat",
+          "arm": "NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57993.000001_Phase+10.40d.dat",
+          "seam_jump_log10": 0.009884031117916692,
+          "gap_a": 339.6740000000009,
+          "prescale_jump": 6.284349041152382e-09,
+          "regression_flag": true
+        }
+      ]
+    }
+  ],
+  "ungrouped": [
+    {
+      "basename": "57983.01825_LDSS3_Magellan.dat",
+      "mjd": 57983.01825,
+      "meta": {
+        "used_filters": [
+          "DECam_i",
+          "DECam_z",
+          "Swope_i"
+        ],
+        "norm_diff": 0.09158442730067762,
+        "n_filters": 3
+      },
+      "mode": "per_arm"
+    },
+    {
+      "basename": "57983.0362_LDSS3_Magellan.dat",
+      "mjd": 57983.0362,
+      "meta": {
+        "used_filters": [
+          "DECam_i",
+          "DECam_z",
+          "Swope_i",
+          "VISTA_Y"
+        ],
+        "norm_diff": 0.07612910203995416,
+        "n_filters": 4
+      },
+      "mode": "per_arm"
+    },
+    {
+      "basename": "57983.05998_LDSS3_Magellan.dat",
+      "mjd": 57983.05998,
+      "meta": {
+        "used_filters": [
+          "DECam_i",
+          "Swope_i"
+        ],
+        "norm_diff": -0.07728364863508297,
+        "n_filters": 2
+      },
+      "mode": "per_arm"
+    },
+    {
+      "basename": "57983.9914_LDSS3_Magellan.dat",
+      "mjd": 57983.9914,
+      "meta": {
+        "used_filters": [
+          "DECam_g",
+          "DECam_i",
+          "DECam_r",
+          "DECam_u",
+          "DECam_z",
+          "GFC_i",
+          "GFC_y",
+          "GFC_z",
+          "GROND_g",
+          "GROND_i",
+          "GROND_r",
+          "GROND_z",
+          "HSC_z",
+          "Sinistro_g",
+          "Sinistro_i",
+          "Sinistro_r",
+          "Skymapper_g",
+          "Skymapper_i",
+          "Skymapper_r",
+          "Swope_i",
+          "T80Cam_g",
+          "UVOT_U"
+        ],
+        "norm_diff": 0.06054491143012353,
+        "n_filters": 22
+      },
+      "mode": "per_arm"
+    },
+    {
+      "basename": "57984.0484_LDSS3_Magellan.dat",
+      "mjd": 57984.0484,
+      "meta": {
+        "used_filters": [
+          "DECam_g",
+          "DECam_i",
+          "DECam_r",
+          "DECam_u",
+          "DECam_z",
+          "GFC_i",
+          "GFC_z",
+          "GROND_g",
+          "GROND_i",
+          "GROND_r",
+          "GROND_z",
+          "HSC_z",
+          "Sinistro_g",
+          "Sinistro_i",
+          "Sinistro_r",
+          "Skymapper_g",
+          "Skymapper_i",
+          "Skymapper_r",
+          "Swope_B",
+          "Swope_i",
+          "Swope_r"
+        ],
+        "norm_diff": 0.027555184631538054,
+        "n_filters": 21
+      },
+      "mode": "per_arm"
+    },
+    {
+      "basename": "57985.99019_LDSS3_Magellan.dat",
+      "mjd": 57985.99019,
+      "meta": {
+        "used_filters": [
+          "DECam_Y",
+          "DECam_g",
+          "DECam_i",
+          "DECam_r",
+          "DECam_z",
+          "GFC_y",
+          "GFC_z",
+          "GROND_g",
+          "GROND_i",
+          "GROND_r",
+          "GROND_z",
+          "HSC_z",
+          "Sinistro_r",
+          "Swope_B",
+          "Swope_g",
+          "Swope_i",
+          "Swope_r",
+          "VISTA_Y"
+        ],
+        "norm_diff": 0.037762671279576665,
+        "n_filters": 18
+      },
+      "mode": "per_arm"
+    },
+    {
+      "basename": "57987.03511_LDSS3_Magellan.dat",
+      "mjd": 57987.03511,
+      "meta": {
+        "used_filters": [
+          "DECam_Y",
+          "DECam_g",
+          "DECam_i",
+          "DECam_r",
+          "DECam_z",
+          "FORS2_I",
+          "FORS2_R",
+          "FORS2_V",
+          "GFC_y",
+          "GMOS_i",
+          "GMOS_r",
+          "HSC_z",
+          "Sinistro_r",
+          "Swope_i",
+          "VIMOS_z",
+          "VISTA_Y"
+        ],
+        "norm_diff": 0.019918090245525377,
+        "n_filters": 16
+      },
+      "mode": "per_arm"
+    },
+    {
+      "basename": "57989.98185_LDSS3_Magellan.dat",
+      "mjd": 57989.98185,
+      "meta": {
+        "used_filters": [
+          "DECam_Y",
+          "DECam_i",
+          "DECam_r",
+          "DECam_z",
+          "FORS2_I",
+          "FORS2_R",
+          "FORS2_V",
+          "GMOS_i",
+          "GMOS_r",
+          "HSC_z",
+          "Swope_i",
+          "VIMOS_z",
+          "VISTA_Y"
+        ],
+        "norm_diff": 0.1283822174895093,
+        "n_filters": 13
+      },
+      "mode": "per_arm"
+    },
+    {
+      "basename": "57990.98563_LDSS3_Magellan.dat",
+      "mjd": 57990.98563,
+      "meta": {
+        "used_filters": [
+          "DECam_Y",
+          "DECam_i",
+          "DECam_r",
+          "DECam_z",
+          "FORS2_I",
+          "FORS2_R",
+          "FORS2_V",
+          "VIMOS_z",
+          "VISTA_Y"
+        ],
+        "norm_diff": 0.156951202778842,
+        "n_filters": 9
+      },
+      "mode": "per_arm"
+    }
+  ],
+  "n_mangled": 38,
+  "n_failed": 1,
+  "failed": [
+    {
+      "basename": "57983.02788_LDSS3_Magellan.dat",
+      "mjd": 57983.02788,
+      "path": "/Users/ravkaur/Desktop/research/kilonova-SED/kn-sed-pipeline/Inputs/Spectroscopy/2_spec_prescaled/AT2017gfo/57983.02788_LDSS3_Magellan.dat",
+      "reason": "no_phot_constraints"
+    }
+  ]
+}
