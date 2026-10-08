@@ -31,7 +31,7 @@ def get_color_band(band_name):
 
 #load vega spectrum
 from astropy.io import fits
-vega = fits.open('/Users/ravkaur/Desktop/research/kilonova-SED/PyCoCo_templates/what_the_flux/alpha_lyr_stis_006.fits')
+vega = fits.open('/home/rtaras/kn-sed-pipeline/what_the_flux/alpha_lyr_stis_006.fits')
 w_Vega_full, f_Vega_full = vega[1].data['WAVELENGTH'], vega[1].data['FLUX']
 mask_Vega = (w_Vega_full>500.)&(w_Vega_full<25000)
 w_Vega = w_Vega_full[mask_Vega]

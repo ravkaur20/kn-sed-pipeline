@@ -5,6 +5,22 @@
       "color": "brown",
       "marker": "o"
     },
+    "ACS_WFC_F475W": {
+      "color": "dodgerblue",
+      "marker": "^"
+    },
+    "ACS_WFC_F625W": {
+      "color": "blue",
+      "marker": "d"
+    },
+    "ACS_WFC_F775W": {
+      "color": "orangered",
+      "marker": "^"
+    },
+    "ACS_WFC_F850W": {
+      "color": "slateblue",
+      "marker": "H"
+    },
     "DECam_Y": {
       "color": "goldenrod",
       "marker": "^"
@@ -29,6 +45,14 @@
       "color": "darkslategray",
       "marker": "^"
     },
+    "DK1.5_i": {
+      "color": "dodgerblue",
+      "marker": "H"
+    },
+    "DK1.5_z": {
+      "color": "yellowgreen",
+      "marker": "p"
+    },
     "EFOSC2_U": {
       "color": "blue",
       "marker": "D"
@@ -36,6 +60,30 @@
     "EFOSC2_V": {
       "color": "limegreen",
       "marker": "D"
+    },
+    "EFOSC2_z": {
+      "color": "green",
+      "marker": "d"
+    },
+    "EFOSC2_g": {
+      "color": "lightgreen",
+      "marker": "*"
+    },
+    "EFOSC2_H": {
+      "color": "purple",
+      "marker": "."
+    },
+    "EFOSC2_i": {
+      "color": "deeppink",
+      "marker": ","
+    },
+    "EFOSC2_r": {
+      "color": "crimson",
+      "marker": "D"
+    },
+    "EFOSC2_J": {
+      "color": "brown",
+      "marker": ","
     },
     "FLAMINGOS-2_H": {
       "color": "firebrick",
@@ -64,6 +112,18 @@
     "FORS2_V": {
       "color": "limegreen",
       "marker": "<"
+    },
+    "FORS2_z": {
+      "color": "limegreen",
+      "marker": ">"
+    },
+    "FORS_r": {
+      "color": "saddlebrown",
+      "marker": "<"
+    },
+    "FORS_z": {
+      "color": "firebrick",
+      "marker": "*"
     },
     "FourStar_H": {
       "color": "darkred",
@@ -157,14 +217,115 @@
       "color": "darkred",
       "marker": "s"
     },
+    "LDSS_B": {
+      "color": "darkred",
+      "marker": "+"
+    },
+    "LDSS_g": {
+      "color": "red",
+      "marker": "-"
+    },
+    "LDSS_i": {
+      "color": "deeppink",
+      "marker": "+"
+    },
+    "LDSS_r": {
+      "color": "brown",
+      "marker": "^"
+    },
+    "LDSS_z": {
+      "color": "goldenrod",
+      "marker": "+"
+    },
     "LRIS_I": {
       "color": "mediumvioletred",
       "marker": "D"
+    },
+    "LRIS_g": {
+      "color": "mediumspringgreen",
+      "marker": "-"
+    },
+    "LSST_g": {
+      "color": "tomato",
+      "marker": "D"
+    },
+    "LSST_i": {
+      "color": "forestgreen",
+      "marker": "d"
+    },
+    "LSST_r": {
+      "color": "darkslategray",
+      "marker": "*"
+    },
+    "LSST_u": {
+      "color": "teal",
+      "marker": ">"
+    },
+    "LSST_Y": {
+      "color": "slateblue",
+      "marker": "<"
+    },
+    "LSST_z": {
+      "color": "purple",
+      "marker": "<"
     },
     "MOIRCS_Ks": {
       "color": "sienna",
       "marker": ">"
     },
+    "OmegaCam_g": {
+      "color": "indigo",
+      "marker": "D"
+    },
+    "OmegaCam_i": {
+      "color": "yellowgreen",
+      "marker": ">"
+    },
+    "OmegaCam_r": {
+      "color": "indigo",
+      "marker": "."
+    },
+    "RC-1000_r": {
+      "color": "red",
+      "marker": "*"
+    },
+    "RetroCam_H": {
+      "color": "lightgreen",
+      "marker": "H"
+    },
+    "RetroCam_J": {
+      "color": "jet",
+      "marker": ","
+    },
+    "RetroCam_Y": {
+      "color": "green",
+      "marker": "."
+    },
+    "ROS2_g": {
+      "color": "green",
+      "marker": ","
+    },
+    "ROS2_i": {
+      "color": "indigo",
+      "marker": ","
+    },
+    "ROS2_r": {
+      "color": "red",
+      "marker": "p"
+    },
+    "ROS2_z": {
+      "color": "blue",
+      "marker": "x"
+    },
+    "SAAO_B": {
+      "color": "slateblue",
+      "marker": "*"
+    },
+    "SAAO_R": {
+      "color": "saddlebrown",
+      "marker": "*"
+    },
+  
     "SIRIUS_H": {
       "color": "darkred",
       "marker": "D"
@@ -184,6 +345,10 @@
     "SOFI_Ks": {
       "color": "saddlebrown",
       "marker": "o"
+    },
+    "Sinistro_w": {
+      "color": "darkorange",
+      "marker": "*"
     },
     "Sinistro_V": {
       "color": "mediumaquamarine",
@@ -241,6 +406,26 @@
       "color": "seagreen",
       "marker": "*"
     },
+    "T80Cam_i": {
+      "color": "crimson",
+      "marker": "*"
+    },
+    "T80Cam_r": {
+      "color": "salmon",
+      "marker": "<"
+    },
+    "Tripol5_g": {
+      "color": "darkseagreen",
+      "marker": "<"
+    },
+    "Tripol5_i": {
+      "color": "limegreen",
+      "marker": "<"
+    },
+    "Tripol5_r": {
+      "color": "mediumspringgreen",
+      "marker": ">"
+    },
     "UVOT_B": {
       "color": "dodgerblue",
       "marker": "X"
@@ -252,6 +437,10 @@
     "UVOT_U": {
       "color": "teal",
       "marker": "X"
+    },
+    "UVOT_V": {
+      "color": "tomato",
+      "marker": "x"
     },
     "UVOT_W1": {
       "color": "purple",
@@ -265,6 +454,14 @@
       "color": "maroon",
       "marker": "<"
     },
+    "VIMOS_r": {
+      "color": "mediumvioletred",
+      "marker": "x"
+    },
+    "VISIR_J8.9": {
+      "color": "navy",
+      "marker": "^"
+    },
     "VISTA_J": {
       "color": "dimgray",
       "marker": "o"
@@ -276,6 +473,54 @@
     "VISTA_Y": {
       "color": "salmon",
       "marker": "o"
+    },
+    "WFC3_IR_F110W": {
+      "color": "black",
+      "marker": "."
+    },
+    "WFC3_IR_F160W": {
+      "color": "goldenrod",
+      "marker": "."
+    },
+    "WFC3_UVIS1_F225W": {
+      "color": "black",
+      "marker": "p"
+    },
+    "WFC3_UVIS1_F275W": {
+      "color": "forestgreen",
+      "marker": ">"
+    },
+    "WFC3_UVIS1_F336W": {
+      "color": "maroon",
+      "marker": "p"
+    },
+    "WFC3_UVIS1_F475W": {
+      "color": "purple",
+      "marker": "<"
+    },
+    "WFC3_UVIS1_F606W": {
+      "color": "royalblue",
+      "marker": ">"
+    },
+    "WFC3_UVIS1_F814W": {
+      "color": "indianred",
+      "marker": "p"
+    },
+    "WHIRC_Ks": {
+      "color": "firebrick",
+      "marker": "^"
+    },
+    "XS_g": {
+      "color": "brown",
+      "marker": "x"
+    },
+    "XS_r": {
+      "color": "orangered",
+      "marker": ","
+    },
+    "XS_z": {
+      "color": "slateblue",
+      "marker": ","
     }
   },
   "exclude": ["Swope_V", "EFOSC2_V"],
