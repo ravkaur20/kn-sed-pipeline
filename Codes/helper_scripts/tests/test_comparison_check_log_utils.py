@@ -58,6 +58,50 @@ class TestParseAndStem(unittest.TestCase):
         self.assertGreater(b - a, 0.09)
 
 
+class TestIterationSources(unittest.TestCase):
+    """Iteration / mangled-source resolution on a throwaway Outputs tree."""
+
+    def setUp(self):
+        self.coco = tempfile.mkdtemp(prefix="cclog_iter_")
+        self.sn = "SNX"
+        it = os.path.join(self.coco, "Outputs", self.sn, "twodim_iter")
+        for k in (0, 1):
+            os.makedirs(os.path.join(it, "iter_%02d" % k, "gp_runs", "full_gp"))
+            os.makedirs(os.path.join(it, "iter_%02d" % k, "mangled_spectra"))
+        os.makedirs(os.path.join(it, "iter_02", "mangled_spectra"))  # re-mangle only
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.coco)
+
+    def test_last_gp_iteration_skips_remangle_only_dir(self):
+        self.assertEqual(cc.resolve_iter_index(self.coco, self.sn), 1)
+        self.assertEqual(cc.resolve_iter_index(self.coco, self.sn, 0), 0)
+        with self.assertRaises(FileNotFoundError):
+            cc.resolve_iter_index(self.coco, self.sn, 2)
+
+    def test_mangled_modes(self):
+        step5 = cc.default_spec_dir_for_mode("mangled", self.sn, self.coco)
+        self.assertTrue(step5.endswith(os.path.join(self.sn, "mangled_spectra")))
+        fed_last = cc.default_spec_dir_for_mode("mangled_final", self.sn, self.coco)
+        self.assertTrue(fed_last.endswith(os.path.join("iter_01", "mangled_spectra")))
+        fed_0 = cc.default_spec_dir_for_mode("mangled_final", self.sn, self.coco, iter_index=0)
+        self.assertTrue(fed_0.endswith(os.path.join("iter_00", "mangled_spectra")))
+
+    def test_sed_directory(self):
+        self.assertTrue(
+            cc.resolve_sed_directory(self.coco, self.sn).endswith(
+                os.path.join("FINAL_spectra_2dim", "as_observed")
+            )
+        )
+        self.assertTrue(
+            cc.resolve_sed_directory(self.coco, self.sn, 0).endswith(
+                os.path.join("iter_00", "gp_runs", "full_gp")
+            )
+        )
+
+
 class TestSpectraListAugment(unittest.TestCase):
     def test_prepend_only_if_later(self):
         wl = np.linspace(3000, 8000, 50)
