@@ -47,7 +47,15 @@ class TestParseAndStem(unittest.TestCase):
         mjd = cc.stem_to_spec_mjd(0.842480, coco, sn)
         self.assertGreater(mjd, 57982.0)
         self.assertLess(mjd, 58000.0)
-        np.testing.assert_allclose(mjd, 57989.46904913394, rtol=0.0, atol=1e-4)
+        # t0_fix + 10**stem, not snapped to the fitted_phot_logspace grid
+        np.testing.assert_allclose(mjd, 57982.52851852 + 10**0.842480, rtol=0.0, atol=1e-6)
+
+    def test_stem_to_spec_mjd_keeps_close_stems_distinct(self):
+        coco = ROOT
+        sn = "AT2017gfo"
+        a = cc.stem_to_spec_mjd(1.396199, coco, sn)
+        b = cc.stem_to_spec_mjd(1.397940, coco, sn)
+        self.assertGreater(b - a, 0.09)
 
 
 class TestSpectraListAugment(unittest.TestCase):

@@ -141,13 +141,11 @@ def stem_to_spec_mjd(
     snname: str,
     *,
     datalc_path: str | None = None,
-    voronoi_half: float = 0.5,
 ) -> float:
-    """Map a TwoD filename stem to spectrum MJD via ``fitted_phot_logspace`` (full-precision ``Log_Phase``).
+    """Map a TwoD filename stem (``log10`` phase in days) to spectrum MJD: ``t0_fix + 10**stem``.
 
-    The stem must be **unambiguously** closest to one grid row: not midway between two ``Log_Phase``
-    values, and within ``voronoi_half * (min grid step)`` of that row. Table phases are **not** rounded;
-    MJD uses ``t0_fix + 10**Log_Phase`` with the exact ``Log_Phase`` float from the matched row.
+    Stems are written as ``"%.6f" % log10(phase)`` (``gp_full_spectra_export``), so they already
+    carry the exact phase; they are **not** snapped to the coarser ``fitted_phot_logspace`` grid.
     """
     stem = float(stem)
     if stem_looks_like_calendar_mjd(stem):
@@ -157,63 +155,7 @@ def stem_to_spec_mjd(
             coco_path, "Inputs", "Photometry", "3_LCs_extrapolated"
         )
     t0f = t0_fix_from_late_lc(datalc_path, snname)
-    lpath = os.path.join(
-        coco_path, "Outputs", snname, "fitted_phot_logspace_%s.dat" % snname
-    )
-    if not os.path.isfile(lpath):
-        raise FileNotFoundError("Missing logspace photometry table: %s" % lpath)
-    lp = np.genfromtxt(lpath, names=True, delimiter="\t", encoding="utf-8")
-    if lp.size == 0:
-        raise ValueError("empty fitted_phot_logspace table: %s" % lpath)
-    names = lp.dtype.names
-    if names is None or "Log_Phase" not in names:
-        raise ValueError("fitted_phot_logspace file has no Log_Phase column: %s" % lpath)
-    pv = np.atleast_1d(np.asarray(lp["Log_Phase"], dtype=np.float64))
-    pos = _unambiguous_nearest_log_phase_index(float(stem), pv, voronoi_half=float(voronoi_half))
-    lpv = float(pv[pos])
-    return float(t0f + 10.0**lpv)
-
-
-def _unambiguous_nearest_log_phase_index(
-    stem: float,
-    pv: np.ndarray,
-    *,
-    voronoi_half: float = 0.5,
-) -> int:
-    """Index of the unique nearest ``Log_Phase`` to ``stem``; raise if ties or stem too far from grid."""
-    pv = np.asarray(pv, dtype=np.float64).ravel()
-    stem = float(np.float64(stem))
-    if pv.size == 0:
-        raise ValueError("empty Log_Phase column")
-    distances = np.abs(pv - stem)
-    pos = int(np.argmin(distances))
-    d_nearest = float(distances[pos])
-    if pv.size >= 2:
-        if pos == 0:
-            alt = distances[1:]
-        elif pos == len(distances) - 1:
-            alt = distances[:-1]
-        else:
-            alt = np.concatenate([distances[:pos], distances[pos + 1 :]])
-        d_second = float(np.min(alt))
-        eps = 1e-12 * (1.0 + abs(stem))
-        if d_second <= d_nearest + eps:
-            raise ValueError(
-                "Ambiguous Log_Phase for stem=%r: distance to two grid rows is nearly equal "
-                "(|Δ|≈%s vs %s). Use the stem that matches one row of fitted_phot_logspace."
-                % (stem, d_nearest, d_second)
-            )
-    u = np.unique(pv)
-    if u.size >= 2:
-        min_step = float(np.min(np.diff(np.sort(u))))
-        limit = float(voronoi_half) * min_step + 1e-9
-        if d_nearest > limit:
-            raise ValueError(
-                "stem=%r is too far from the nearest Log_Phase row (|stem−Log_Phase|=%.6g; "
-                "for this grid require < %.6g). Nearest Log_Phase=%.17g"
-                % (stem, d_nearest, limit, float(pv[pos]))
-            )
-    return pos
+    return float(t0f + 10.0**stem)
 
 
 def resolve_final_directory(
