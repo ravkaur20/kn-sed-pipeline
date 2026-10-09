@@ -25,6 +25,10 @@ __all__ = [
     "resolve_final_directory",
     "resolve_final_directory_legacy",
     "resolve_iter_gp_directory",
+    "resolve_iter_index",
+    "resolve_sed_directory",
+    "MANGLED_MODES",
+    "SPECTRUM_MODES",
     "twodim_final_branch",
     "read_final_spectrum_linear",
     "deduplicate_wavelength_flux",
@@ -141,13 +145,11 @@ def stem_to_spec_mjd(
     snname: str,
     *,
     datalc_path: str | None = None,
-    voronoi_half: float = 0.5,
 ) -> float:
-    """Map a TwoD filename stem to spectrum MJD via ``fitted_phot_logspace`` (full-precision ``Log_Phase``).
+    """Map a TwoD filename stem (``log10`` phase in days) to spectrum MJD: ``t0_fix + 10**stem``.
 
-    The stem must be **unambiguously** closest to one grid row: not midway between two ``Log_Phase``
-    values, and within ``voronoi_half * (min grid step)`` of that row. Table phases are **not** rounded;
-    MJD uses ``t0_fix + 10**Log_Phase`` with the exact ``Log_Phase`` float from the matched row.
+    Stems are written as ``"%.6f" % log10(phase)`` (``gp_full_spectra_export``), so they already
+    carry the exact phase; they are **not** snapped to the coarser ``fitted_phot_logspace`` grid.
     """
     stem = float(stem)
     if stem_looks_like_calendar_mjd(stem):
@@ -157,63 +159,7 @@ def stem_to_spec_mjd(
             coco_path, "Inputs", "Photometry", "3_LCs_extrapolated"
         )
     t0f = t0_fix_from_late_lc(datalc_path, snname)
-    lpath = os.path.join(
-        coco_path, "Outputs", snname, "fitted_phot_logspace_%s.dat" % snname
-    )
-    if not os.path.isfile(lpath):
-        raise FileNotFoundError("Missing logspace photometry table: %s" % lpath)
-    lp = np.genfromtxt(lpath, names=True, delimiter="\t", encoding="utf-8")
-    if lp.size == 0:
-        raise ValueError("empty fitted_phot_logspace table: %s" % lpath)
-    names = lp.dtype.names
-    if names is None or "Log_Phase" not in names:
-        raise ValueError("fitted_phot_logspace file has no Log_Phase column: %s" % lpath)
-    pv = np.atleast_1d(np.asarray(lp["Log_Phase"], dtype=np.float64))
-    pos = _unambiguous_nearest_log_phase_index(float(stem), pv, voronoi_half=float(voronoi_half))
-    lpv = float(pv[pos])
-    return float(t0f + 10.0**lpv)
-
-
-def _unambiguous_nearest_log_phase_index(
-    stem: float,
-    pv: np.ndarray,
-    *,
-    voronoi_half: float = 0.5,
-) -> int:
-    """Index of the unique nearest ``Log_Phase`` to ``stem``; raise if ties or stem too far from grid."""
-    pv = np.asarray(pv, dtype=np.float64).ravel()
-    stem = float(np.float64(stem))
-    if pv.size == 0:
-        raise ValueError("empty Log_Phase column")
-    distances = np.abs(pv - stem)
-    pos = int(np.argmin(distances))
-    d_nearest = float(distances[pos])
-    if pv.size >= 2:
-        if pos == 0:
-            alt = distances[1:]
-        elif pos == len(distances) - 1:
-            alt = distances[:-1]
-        else:
-            alt = np.concatenate([distances[:pos], distances[pos + 1 :]])
-        d_second = float(np.min(alt))
-        eps = 1e-12 * (1.0 + abs(stem))
-        if d_second <= d_nearest + eps:
-            raise ValueError(
-                "Ambiguous Log_Phase for stem=%r: distance to two grid rows is nearly equal "
-                "(|Δ|≈%s vs %s). Use the stem that matches one row of fitted_phot_logspace."
-                % (stem, d_nearest, d_second)
-            )
-    u = np.unique(pv)
-    if u.size >= 2:
-        min_step = float(np.min(np.diff(np.sort(u))))
-        limit = float(voronoi_half) * min_step + 1e-9
-        if d_nearest > limit:
-            raise ValueError(
-                "stem=%r is too far from the nearest Log_Phase row (|stem−Log_Phase|=%.6g; "
-                "for this grid require < %.6g). Nearest Log_Phase=%.17g"
-                % (stem, d_nearest, limit, float(pv[pos]))
-            )
-    return pos
+    return float(t0f + 10.0**stem)
 
 
 def resolve_final_directory(
@@ -462,7 +408,66 @@ def default_list_file_for_mode(mode: str, snname: str, coco_path: str) -> str | 
     return None
 
 
-def default_spec_dir_for_mode(mode: str, snname: str, coco_path: str) -> str:
+def resolve_iter_index(
+    coco_path: str, snname: str, iter_index: int | None = None
+) -> int:
+    """Step-6 iteration to plot: ``iter_index``, or (``None``) the last one that ran a GP.
+
+    The last ``twodim_iter/iter_KK`` usually holds only the post-GP re-mangle (no ``gp_runs``),
+    so it is not counted.
+    """
+    import pipeline_config as pconf
+
+    out = pconf.outputs_root(coco_path)
+    if iter_index is not None:
+        k = int(iter_index)
+        gp_dir = os.path.join(pconf.iter_gp_runs_dir(out, snname, k), "full_gp")
+        if not os.path.isdir(gp_dir):
+            raise FileNotFoundError("Iteration %d has no GP output: %s" % (k, gp_dir))
+        return k
+    k = 0
+    last = None
+    while os.path.isdir(pconf.twodim_iter_dir(out, snname, None, k)):
+        if os.path.isdir(os.path.join(pconf.iter_gp_runs_dir(out, snname, k), "full_gp")):
+            last = k
+        k += 1
+    if last is None:
+        raise FileNotFoundError(
+            "No step-6 iteration with gp_runs/full_gp under %s"
+            % pconf.twodim_iter_root(out, snname)
+        )
+    return last
+
+
+def resolve_sed_directory(
+    coco_path: str,
+    snname: str,
+    iter_index: int | None = None,
+    *,
+    final_variant: str | None = None,
+) -> str:
+    """SED spectra to plot: ``FINAL_spectra_2dim/<variant>`` (``None``) or ``iter_KK/gp_runs/full_gp``."""
+    import pipeline_config as pconf
+
+    if iter_index is None:
+        var = pconf.FINAL_SPECTRA_VARIANT if final_variant is None else final_variant
+        return resolve_final_directory(coco_path, snname, var)
+    k = resolve_iter_index(coco_path, snname, iter_index)
+    return os.path.join(pconf.iter_gp_runs_dir(pconf.outputs_root(coco_path), snname, k), "full_gp")
+
+
+MANGLED_MODES: Tuple[str, ...] = ("mangled", "mangled_final")
+SPECTRUM_MODES: Tuple[str, ...] = ("original", "smoothed") + MANGLED_MODES
+
+
+def default_spec_dir_for_mode(
+    mode: str, snname: str, coco_path: str, *, iter_index: int | None = None
+) -> str:
+    """Default directory for input spectra.
+
+    ``mangled`` is the step-5 product; ``mangled_final`` is ``iter_KK/mangled_spectra``, the
+    spectra that fed iteration K's GP (K = ``iter_index``, or the last GP iteration).
+    """
     mode = str(mode).lower()
     if mode == "smoothed":
         return os.path.join(coco_path, "Inputs", "Spectroscopy", "2_spec_smoothed")
@@ -470,7 +475,15 @@ def default_spec_dir_for_mode(mode: str, snname: str, coco_path: str) -> str:
         return os.path.join(coco_path, "Inputs", "Spectroscopy", "1_spec_original", snname)
     if mode == "mangled":
         return os.path.join(coco_path, "Outputs", snname, "mangled_spectra")
-    raise ValueError("mode must be 'original', 'smoothed', or 'mangled'")
+    if mode == "mangled_final":
+        import pipeline_config as pconf
+
+        k = resolve_iter_index(coco_path, snname, iter_index)
+        return os.path.join(
+            pconf.twodim_iter_dir(pconf.outputs_root(coco_path), snname, None, k),
+            "mangled_spectra",
+        )
+    raise ValueError("mode must be one of %s" % ", ".join(SPECTRUM_MODES))
 
 
 def collect_input_spectra_for_mode(
@@ -479,25 +492,29 @@ def collect_input_spectra_for_mode(
     original_spec_dir: str | None,
     snname: str,
     coco_path: str,
+    *,
+    iter_index: int | None = None,
 ) -> tuple[list[str], np.ndarray, str, str | None]:
     """
     Build parallel lists of spectrum paths (relative or absolute) and MJDs.
 
-    For mode='mangled' with list_file missing or not a file, scans original_spec_dir for *.txt.
+    For the mangled modes with list_file missing or not a file, scans original_spec_dir for *.txt.
     Returns ``(orig_paths, orig_mjds, original_spec_dir, list_ref)``.
     """
     mode = str(mode).lower()
-    if mode not in ("original", "smoothed", "mangled"):
-        raise ValueError("mode must be 'original', 'smoothed', or 'mangled'")
+    if mode not in SPECTRUM_MODES:
+        raise ValueError("mode must be one of %s" % ", ".join(SPECTRUM_MODES))
 
     if original_spec_dir is None:
-        original_spec_dir = default_spec_dir_for_mode(mode, snname, coco_path)
+        original_spec_dir = default_spec_dir_for_mode(
+            mode, snname, coco_path, iter_index=iter_index
+        )
 
     orig_paths: list[str] = []
     orig_mjds_list: list[float] = []
     list_ref: str | None = list_file
 
-    if mode == "mangled":
+    if mode in MANGLED_MODES:
         lf = list_file
         use_scan = (lf is None) or (not os.path.isfile(os.path.expanduser(str(lf))))
         if use_scan:
@@ -588,9 +605,14 @@ def load_comparison_spectrum_xy(
     mode: str,
     flux_on_disk: FluxOnDisk,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Linear F_lambda and wavelength (Å); mangled uses ``read_final_spectrum_linear``."""
-    if str(mode).lower() == "mangled":
-        wl, fl, _ = read_final_spectrum_linear(path, flux_on_disk=flux_on_disk)
+    """Linear F_lambda and wavelength (Å); mangled modes use ``read_final_spectrum_linear``.
+
+    Mangled files are written as log10 flux, so they are auto-detected; ``flux_on_disk`` (the
+    FINAL-spectra setting) is not applied to them.
+    """
+    del flux_on_disk
+    if str(mode).lower() in MANGLED_MODES:
+        wl, fl, _ = read_final_spectrum_linear(path, flux_on_disk="auto")
         return np.asarray(wl, dtype=float), np.asarray(fl, dtype=float)
     d = np.loadtxt(path)
     return np.asarray(d[:, 0], dtype=float), np.asarray(d[:, 1], dtype=float)
