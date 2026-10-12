@@ -54,10 +54,10 @@ Production scripts already force the Agg backend where they create figures. Sett
 | `Codes/helper_scripts/twodim_gp/` | Vendored two-dimensional Gaussian Process inference and plots |
 | `Codes/helper_scripts/docs/` | Developer phase notes (prescale, iteration, data flow, QA) |
 | `Codes/helper_scripts/tests/` | Unit tests |
-| `Inputs/Photometry/` | Light-curve stages (`1_` raw AB mags + step-0 fluxes → `2_` dust-corrected → `3_` extrapolated) |
+| `Inputs/Photometry/` | Light-curve stages (`1_` raw AB mags + step-0 fluxes → `3_` extrapolated; neither is dust-corrected) |
 | `Inputs/Spectroscopy/` | Original, smoothed, and prescaled spectra plus list files |
 | `Inputs/Filters/` | Filter throughput tables (`GeneralFilters/` and variants) |
-| `Inputs/SNe_Info/` | Metadata table (`info.dat`) used by dust correction |
+| `Inputs/SNe_Info/` | Metadata table (`info.dat`): redshift, type, and the dust parameters used to deredden the final SED |
 | `Inputs/Standards/` | Vega reference spectrum (`alpha_lyr_stis_006.fits`, CALSPEC): zero point for Vega magnitudes in step 0 and notebook 7.6 |
 | `Inputs/2DIM_priors/` | Optional surface priors for the two-dimensional Gaussian Process |
 | `Outputs/<SN>/` | All pipeline products for one supernova or kilonova name |
@@ -109,17 +109,18 @@ python 0_Mag_to_Flux_KN.py --snname AT2017gfo --from-json /path/to/KN_SED_DATA_d
 python 0_Mag_to_Flux_KN.py --snname AT2017gfo --redo-fluxes --input ../Inputs/Photometry/1_LCs_flux_raw/AT2017gfo_old.dat
 ```
 
-**Whenever step 0 rewrites the raw file, every downstream product is stale.** Re-run notebooks 1 and 2 (to regenerate `2_LCs_dust_corrected/` and `3_LCs_extrapolated/`) and then steps 3–6. Re-run step 0 whenever you add photometry or change a filter curve.
+**Whenever step 0 rewrites the raw file, every downstream product is stale.** Re-run notebook 2 (to regenerate `3_LCs_extrapolated/`) and then steps 3–6. Re-run step 0 whenever you add photometry or change a filter curve.
 
-> **AT2017gfo note (October 2026).** The raw `Flux` column was regenerated with step 0 (issue #3). The previous version used a blue-shifted "effective wavelength" and was 0.07–0.6 mag too bright depending on band. The shipped `2_LCs_dust_corrected/` and `3_LCs_*` files and any existing `Outputs/` were built from the old fluxes and must be regenerated (notebooks 1–2, then steps 3–6) before results are used.
+> **AT2017gfo note (October 2026).** The raw `Flux` column was regenerated with step 0 (issue #3). The previous version used a blue-shifted "effective wavelength" and was 0.07–0.6 mag too bright depending on band. The shipped `3_LCs_*` files and any existing `Outputs/` were built from the old fluxes, and were dust-corrected by the retired notebook 1 (issue #4); they must be regenerated (notebook 2, then steps 3–6) before results are used.
 
 ### 2.4 Preparation notebooks (if needed)
 
 If `Inputs/Photometry/3_LCs_extrapolated/AT2017gfo.dat` (built from the current step-0 fluxes) and `Inputs/Spectroscopy/2_spec_lists_smoothed/AT2017gfo.list` already exist, you may skip to the scripts. Otherwise open Jupyter from `Codes/` and run:
 
 1. `0.1_Smooth_spectra_KN.ipynb`
-2. `1_LC_DustCorrection_KN.ipynb`
-3. `2_LC_modelRising_KN_fullfit_log.ipynb`
+2. `2_LC_modelRising_KN_fullfit_log.ipynb`
+
+There is no dust-correction notebook: photometry and spectra are fit as observed, and step 6 removes the dust from the final SED (§3.4).
 
 Confirm that `SN_EXPLOSION_MJD["AT2017gfo"]` in `pipeline_config.py` matches the explosion (merger) time used in notebook 2.
 
@@ -149,7 +150,7 @@ python 6_Iterative_GP_mangle_KN.py --snname AT2017gfo --max-iters 20 --verbose
 | 4 (groups only) | `2_spec_lists_smoothed/AT2017gfo.list` | `Outputs/AT2017gfo/AT2017gfo_spec_scale_groups.json` |
 | 4 (scale) | Smoothed spectra + groups JSON | `Inputs/Spectroscopy/2_spec_prescaled/AT2017gfo/`, `2_spec_lists_prescaled/AT2017gfo.list`, scale report and diagnostics |
 | 5 | Prescaled list + spectra, `fitted_phot4mangling_*.dat`, filters, raw photometry for band Modified Julian Date windows | `Outputs/AT2017gfo/mangled_spectra/`, `AT2017gfo_band_mjd_ranges.json` (if missing), `figs/mangle_*` |
-| 6 | Mangled spectra, both fitted photometry tables, prescaled list, groups JSON | `Outputs/AT2017gfo/twodim_iter/` (iterations, metrics, final products, diagnostics) |
+| 6 | Mangled spectra, both fitted photometry tables, prescaled list, groups JSON, `info.dat` (dust) | `Outputs/AT2017gfo/twodim_iter/` (iterations, metrics, final products, diagnostics), `FINAL_spectra_2dim/as_observed/`, `FINAL_spectra_2dim/dereddened/` |
 
 ### 2.7 Expected artifacts checklist
 
@@ -159,7 +160,7 @@ python 6_Iterative_GP_mangle_KN.py --snname AT2017gfo --max-iters 20 --verbose
 | 3 | `fitted_phot4mangling_AT2017gfo.dat` and `fitted_phot_logspace_AT2017gfo.dat` exist and are non-empty |
 | 4 | Prescaled directory contains one file per smoothed spectrum; groups JSON lists XSHOOTER triplets |
 | 5 | `mangled_spectra/` has one mangled file per successfully constrained epoch; epoch PDFs under `figs/mangle_epoch/` |
-| 6 | `twodim_iter/final/full_gp/` has extended spectra; `twodim_iter/diagnostics_summary/index.html` opens; `gp_vs_mangled` PDFs show full instrument wavelength spans |
+| 6 | `twodim_iter/final/full_gp/` has extended spectra; `FINAL_spectra_2dim/as_observed/` and `dereddened/` hold the same file names, and `dereddened/dust_params.json` shows the expected $E(B-V)$, $R_V$ and law; `twodim_iter/diagnostics_summary/index.html` opens; `gp_vs_mangled` PDFs show full instrument wavelength spans |
 
 Runtime for step 6 depends on iteration count and machine; a short debug run with `--max-iters 2` is useful before a full `--max-iters 20` production pass.
 
@@ -172,7 +173,6 @@ Runtime for step 6 depends on iteration count and machine; a short debug run wit
 | Stage folder | Written by | Role |
 |--------------|------------|------|
 | `Inputs/Photometry/1_LCs_flux_raw/` | Step 0 (from a compiled-photometry JSON, or `--redo-fluxes` on a user-written file) | Observed (not dust-corrected) AB magnitudes and their pivot-wavelength band fluxes; also used to auto-build `<SN>_band_mjd_ranges.json` in step 5 |
-| `Inputs/Photometry/2_LCs_dust_corrected/` | Notebook 1 | Dust-corrected fluxes |
 | `Inputs/Photometry/3_LCs_extrapolated/` | Notebook 2 | Input to step 3 light-curve Gaussian Process |
 | `Inputs/Photometry/3_LCs_early_extrapolated/` | Notebook 2 (intermediate) | Early-only preview or intermediate products in some workflows |
 
@@ -184,7 +184,7 @@ Legacy checkouts may still have `4_LCs_late_extrapolated/`. The configuration mo
 
 **Raw columns (required):** `MJD`, `Mag`, `Mag_err`, `Flux`, `Flux_err`, `band`, `Instr`, `FilterSet` (comma-separated), plus an optional trailing **`MagSys`** (`AB` or `Vega`; missing column or blank = AB). `Mag` is the published magnitude in the filter system the measurement was reported in, in the system given by `MagSys`; `band` must match `Inputs/Filters/<FilterSet>/<band>.dat`. Step 0 always writes `Flux`/`Flux_err` and, from JSON, `MagSys`.
 
-**Who reads which columns.** Notebook 1, step 5's band-MJD windows, and therefore steps 2–6 use only `MJD`, `band`, `Flux`, `Flux_err` (`FilterSet`, `Instr` are passed through); all read the file with column names, so the extra `MagSys` column changes nothing (notebook 1's output is byte-for-byte identical with and without it). Only QA code reads `Mag` (notebooks 7.5/7.6, `comparison_trapz_lc.py`, `plotting-final.ipynb`); 7.6 reports synthetic magnitudes in each row's own system (`mag_<x>_insys`), while the 7.5 notebooks and `plotting-final.ipynb` still plot `Mag` as AB, which is off by $m_{AB}-m_{\rm Vega}$ for Vega rows (about $-0.01$ mag for the current Sinistro $V$ points).
+**Who reads which columns.** Notebook 2, step 5's band-MJD windows, and therefore steps 3–6 use only `MJD`, `band`, `Flux`, `Flux_err` (`FilterSet`, `Instr` are passed through; notebook 2 writes only these six columns plus its phase and log-flux columns to `3_LCs_extrapolated`); all read the file with column names, so the extra raw columns change nothing. Only QA code reads `Mag` (notebooks 7.5/7.6, `comparison_trapz_lc.py`, `plotting-final.ipynb`); 7.6 reports synthetic magnitudes in each row's own system (`mag_<x>_insys`), while the 7.5 notebooks and `plotting-final.ipynb` still plot `Mag` as AB, which is off by $m_{AB}-m_{\rm Vega}$ for Vega rows (about $-0.01$ mag for the current Sinistro $V$ points).
 
 **Compiled-photometry JSON (input to `--from-json`).** A JSON list with one record per observation, as exported from the photometry compilation spreadsheet (`KN_SED_Data.json`, `KN_SED_DATA_dust_corrected.json`). Keys used:
 
@@ -198,7 +198,7 @@ Legacy checkouts may still have `4_LCs_late_extrapolated/`. The configuration mo
 | `Repeated obs` | Only with `--drop-repeated`: drop rows marked `R` (repeated observation), keep everything else |
 | `Refrence` | Copied to the row report |
 
-Magnitudes must **not** be dust-corrected (notebook 1 applies the extinction correction), so any published dereddening has to be undone in the JSON before step 0; step 0 cannot tell from the JSON whether that was done. Rows are dropped when MJD, magnitude, or error is non-numeric, the magnitude is a limit (`>`/`<`), the system is neither AB nor Vega, or no filter curve matches (add the curve under `Inputs/Filters/GeneralFilters/` to keep them).
+Magnitudes must **not** be dust-corrected (step 6 removes the dust from the final SED), so any published dereddening has to be undone in the JSON before step 0; step 0 cannot tell from the JSON whether that was done. Rows are dropped when MJD, magnitude, or error is non-numeric, the magnitude is a limit (`>`/`<`), the system is neither AB nor Vega, or no filter curve matches (add the curve under `Inputs/Filters/GeneralFilters/` to keep them).
 
 **Vega magnitudes.** A Vega magnitude is defined like an AB magnitude but relative to the spectrum of Vega (Vega = 0 mag in every band). Because both use the same photon-weighted band mean, each filter has an exact, SED-independent offset
 $$m_{AB} = m_{\rm Vega} - 2.5\log_{10}\frac{\int f^{\rm Vega}_\lambda S\lambda\,d\lambda}{\int f^{AB}_\lambda S\lambda\,d\lambda},$$
@@ -243,7 +243,13 @@ Throughput tables live under `Inputs/Filters/GeneralFilters/` for the default AT
 
 ### 3.4 Supernova info table
 
-`Inputs/SNe_Info/info.dat` holds coordinates and type fields used by the dust-correction notebook (Milky Way extinction toward the transient). Add one row per new object following the header comments in that file.
+`Inputs/SNe_Info/info.dat` holds one space-separated row per object: `Name z RA Dec FullType Type Rich_Type EBV_MW EBV_host RV_MW RV_host`. Add one row per new object following the header comments in that file.
+
+The four dust columns are **required**; step 6 checks them before fitting and stops with an error naming any that is missing or non-numeric. They are used only after the fit, to deredden the final SED wavelength by wavelength:
+
+$$F_{\rm dered}(\lambda)=F_{\rm obs}(\lambda)\,10^{0.4\,[A_{\rm MW}(\lambda)+A_{\rm host}(\lambda/(1+z))]},\qquad A(\lambda)=\mathrm{law}(\lambda;\,R_V E(B-V),\,R_V)$$
+
+Galactic dust is evaluated at the observed wavelength and host dust at the rest-frame wavelength, with the law from `DUST_LAW` (§7.4). `RV_MW` is normally 3.1. The shipped `RV_host` values follow the old notebook-1 table by type (Ic and Ic-BL 4.3, Ib 2.6, IIb 1.1, II, IIn and KN 3.1). Flux errors are scaled by the same factor; $E(B-V)$ and $R_V$ uncertainties are not propagated. Because the fit does not depend on these values, changing them only requires regenerating `FINAL_spectra_2dim/dereddened/` (re-run step 6, or call `dust.deredden_final_spectra` on `as_observed/`).
 
 ### 3.5 Scale groups JSON
 
@@ -294,37 +300,29 @@ Each notebook should call into `pipeline_config` (or `bootstrap_runtime`) rather
 
 **Common failures.** Missing original list path; spectrum files with wrong column order; writing to a path outside `COCO_PATH` so later steps cannot find the list.
 
-### 4.2 `1_LC_DustCorrection_KN.ipynb`
+### 4.2 `2_LC_modelRising_KN_fullfit_log.ipynb`
 
 **Prerequisite.** Step 0 (`0_Mag_to_Flux_KN.py --check`) passes, so the raw `Flux` column is current.
 
-**Purpose.** Correct photometry for Milky Way (and optional host) extinction so fluxes are closer to intrinsic values before light-curve fitting.
-
-**Typical cell order.** Load `info.dat` and raw light curve → compute $A_\lambda$ from extinction law and $E(B-V)$ → write dust-corrected light curve.
-
-**Outputs.** `Inputs/Photometry/2_LCs_dust_corrected/<SN>.dat`.
-
-**Common failures.** Missing coordinates in `info.dat`; filter names in the light curve that do not match filter tables.
-
-### 4.3 `2_LC_modelRising_KN_fullfit_log.ipynb`
-
 **Purpose.** Model the early rising light curve (Bazin and related functional forms), optionally force zero flux at explosion, extrapolate late times where needed, and commit the explosion Modified Julian Date used as phase zero downstream.
 
-**Typical cell order.** Load dust-corrected photometry → preview rising fits per band → commit extrapolation → write `3_LCs_extrapolated/<SN>.dat` → update or confirm `SN_EXPLOSION_MJD` in configuration.
+**Typical cell order.** Load the raw (not dust-corrected) photometry from `1_LCs_flux_raw/` → preview rising fits per band → commit extrapolation → write `3_LCs_extrapolated/<SN>.dat` → update or confirm `SN_EXPLOSION_MJD` in configuration.
 
 **Outputs.** Extrapolated light curve under `Inputs/Photometry/3_LCs_extrapolated/`; possible intermediate early-extrapolation products.
 
 **Common failures.** Explosion time inconsistent with configuration; excluding too many bands so some filters never get a rising model.
 
-### 4.4 `LCfit_publication_plots.ipynb` (optional)
+### 4.3 `LCfit_publication_plots.ipynb` (optional)
 
 **Purpose.** Publication-quality light-curve figures after step 3 has written the Gaussian Process fit products.
 
 **When to run.** After `3_LCfit_KN_log.py` succeeds.
 
-### 4.5 Downstream QA notebooks (`7.5_*.ipynb`, `7.6_synthetic_photometry_final_gp.ipynb`, `bolometric_luminosity.ipynb`, `plotting-final.ipynb`)
+### 4.4 Downstream QA notebooks (`7.5_*.ipynb`, `7.6_synthetic_photometry_final_gp.ipynb`, `bolometric_luminosity.ipynb`, `plotting-final.ipynb`)
 
-**Purpose.** Compare synthetic photometry from final spectra to the light-curve fit; overlay spectra; construct bolometric luminosity; assemble final figures. `7.6_synthetic_photometry_final_gp.ipynb` writes synthetic magnitudes (AB, plus `mag_<x>_insys` in each input row's `MagSys`) of `FINAL_spectra_2dim/as_observed` through every observed filter, both on the GP epochs and at each input-photometry row, for chi-squared comparisons against the input data. Use its default `SYNTH_METHOD = "true_ab"`, which matches the step-0 convention.
+**Purpose.** Compare synthetic photometry from final spectra to the light-curve fit; overlay spectra; construct bolometric luminosity; assemble final figures. `7.6_synthetic_photometry_final_gp.ipynb` writes synthetic magnitudes (AB, plus `mag_<x>_insys` in each input row's `MagSys`) through every observed filter, both on the GP epochs and at each input-photometry row, for chi-squared comparisons against the input data: `mag_AB_obs` from `FINAL_spectra_2dim/as_observed`, `mag_AB_dustcorr` from `FINAL_spectra_2dim/dereddened`, and `A_ext_band` = their difference, the SED-weighted band extinction at each epoch. Without a `dereddened/` folder it writes `mag_AB_obs` only, with a warning. Use its default `SYNTH_METHOD = "true_ab"`, which matches the step-0 convention.
+
+**Which SED.** `bolometric_luminosity.ipynb` reads `FINAL_spectra_2dim/dereddened` (physical luminosity). The 7.5 notebooks and `plotting-final.ipynb` read `as_observed`, which is what the photometry they overlay measures; set `FINAL_VARIANT = pconf.FINAL_SPECTRA_VARIANT_DEREDDENED` in their config cell to plot the dereddened SED instead.
 
 **Configuration.** Keep `USE_ITER_GP_MANGLE_FINAL = True` (default) so path helpers resolve `twodim_iter/final/` and the QA export under `FINAL_spectra_2dim/`. Re-run the configuration and data-directory cells after changing that flag.
 
@@ -482,7 +480,7 @@ If `Outputs/<SN>/<SN>_band_mjd_ranges.json` is missing, step 5 builds it from `I
 
 **Inputs.** Step 5 mangled spectra (seed for `iter_00`), both fitted photometry tables, prescaled list and files, groups JSON, filters.
 
-**Outputs.** `Outputs/<SN>/twodim_iter/` including per-iteration mangled spectra, predictions, figures, metrics, and `final/`.
+**Outputs.** `Outputs/<SN>/twodim_iter/` including per-iteration mangled spectra, predictions, figures, metrics, and `final/`. At the end it copies the final SED to `FINAL_spectra_2dim/as_observed/` and writes the dereddened SED to `FINAL_spectra_2dim/dereddened/` (§3.4). Iteration folders and `predictions.npz` stay as observed.
 
 | Flag | Effect |
 |------|--------|
@@ -589,7 +587,9 @@ Edit [`Codes/pipeline_config.py`](../Codes/pipeline_config.py) or override via c
 | `ITER_GP_SEED_FROM_NB5` | `True` | Seed `iter_00` from step 5 mangled spectra |
 | `ITER_GP_WARM_START` | `True` | Reuse hyperparameters between iterations |
 | `ITER_GP_EXPORT_FULL_GP` | `True` | Write extended spectra under `full_gp/` |
-| `ITER_EXPORT_FINAL_SPEC_FOR_QA` | `True` | Copy QA-named spectra for notebooks 7.5 |
+| `ITER_EXPORT_FINAL_SPEC_FOR_QA` | `True` | Copy QA-named spectra to `FINAL_spectra_2dim/as_observed/` for notebooks 7.5 |
+| `ITER_EXPORT_DEREDDENED_SED` | `True` | Also write `FINAL_spectra_2dim/dereddened/` (needs the QA export) |
+| `DUST_LAW` | `"ccm89"` | Extinction law for the dereddening, used for both MW and host: `ccm89`, `odonnell94`, `fitzpatrick99`, or `fm07` ($R_V=3.1$ only) |
 | `USE_ITER_GP_MANGLE_FINAL` | `True` | Notebooks 7.5 read iteration final products |
 | `ITER_GP_DIAG_FIGS` | `True` | Write Gaussian Process surface diagnostic figures |
 | `PLOT_BUNDLE_SCALING_QA` | `False` | Extra debug figures for bundle scaling |
@@ -608,7 +608,7 @@ Full constant list: see the source file and its grouped sections.
 
 | Symptom | Likely cause | What to do |
 |---------|----------------|------------|
-| `0_Mag_to_Flux_KN.py --check` fails | Raw `Flux` was made with a different conversion (or a filter curve changed) | Rename the raw file, run step 0 with `--from-json` or `--redo-fluxes --input <renamed file>`, then re-run notebooks 1–2 and steps 3–6 |
+| `0_Mag_to_Flux_KN.py --check` fails | Raw `Flux` was made with a different conversion (or a filter curve changed) | Rename the raw file, run step 0 with `--from-json` or `--redo-fluxes --input <renamed file>`, then re-run notebook 2 and steps 3–6 |
 | Step 0 exits with "Refusing to overwrite" (status 2) | The output file already exists | Rename/back up the old file (e.g. `AT2017gfo_old.dat`) and re-run, or pass `--overwrite` |
 | Step 0 `--from-json` drops many rows with "no filter curve" | No `Inputs/Filters/GeneralFilters/<Instrument>_<Filter>.dat` or `<Telescope>_<Filter>.dat` | Add the filter curve (named to match), or fix the spelling in the JSON; see `Outputs/<SN>/<SN>_step0_json_rows.csv` |
 | Synthetic mags of the final SED are systematically brighter or fainter than the catalog `Mag` (by a band-dependent amount) | Pipeline was run on fluxes not produced by step 0, or `SYNTH_METHOD` is not `true_ab` | Run step 0 `--check`; regenerate downstream products; use `true_ab` in notebook 7.6 |
