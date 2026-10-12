@@ -107,10 +107,14 @@ GP_INFERENCE_KWARGS: dict = dict(_gp_inference_kw)
 
 GP_MODE: str = "extrapolate_spectra"
 FINAL_SPECTRA_VARIANT: str = "as_observed"
+# Steps 0-6 fit photometry and spectra as observed (reddened). At the end of step 6 the
+# FINAL SED is dereddened point by point into FINAL_spectra_2dim/<DEREDDENED variant>/
+# (dust.py); E(B-V), R_V and z come from Inputs/SNe_Info/info.dat.
+FINAL_SPECTRA_VARIANT_DEREDDENED: str = "dereddened"
+DUST_LAW: str = "ccm89"  # one of dust.DUST_LAWS: ccm89, odonnell94, fitzpatrick99, fm07
 
 PHOTOMETRY_STAGES: dict[str, str] = {
     "raw": "1_LCs_flux_raw",
-    "dust_corrected": "2_LCs_dust_corrected",
     "extrapolated": "3_LCs_extrapolated",
 }
 
@@ -382,6 +386,7 @@ ITER_GP_WARM_START: bool = True
 ITER_GP_EXPORT_FULL_GP: bool = True
 ITER_GP_EXPORT_SPLICED: bool = False
 ITER_EXPORT_FINAL_SPEC_FOR_QA: bool = True
+ITER_EXPORT_DEREDDENED_SED: bool = True  # needs ITER_EXPORT_FINAL_SPEC_FOR_QA
 ALLOW_RAW_PHOTOMETRY_TARGET: bool = False
 USE_ITER_GP_MANGLE_FINAL: bool = True
 PLOT_GRID_REBIN: bool = True

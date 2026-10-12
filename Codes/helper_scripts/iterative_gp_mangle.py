@@ -451,6 +451,19 @@ def run_iterative_gp_mangle(
     use_gp_wl = bool(getattr(pconf, "ITER_MANGLE_USE_GP_WAVELENGTH_GRID", True))
     wl_grid_mode = "gp" if use_gp_wl else "prescaled"
 
+    # Read the dust parameters up front so a bad info.dat fails before the GP runs.
+    dust_params = None
+    if bool(getattr(pconf, "ITER_EXPORT_FINAL_SPEC_FOR_QA", True)) and bool(
+        getattr(pconf, "ITER_EXPORT_DEREDDENED_SED", True)
+    ):
+        from dust import DUST_LAWS, load_dust_params
+
+        if pconf.DUST_LAW not in DUST_LAWS:
+            raise ValueError("DUST_LAW must be one of %s, got %r" % (DUST_LAWS, pconf.DUST_LAW))
+        dust_params = load_dust_params(
+            os.path.join(pconf.sn_info_dir(coco_path), "info.dat"), snname
+        )
+
     iter_root = pconf.twodim_iter_root(out_root, snname, mode)
     os.makedirs(iter_root, exist_ok=True)
     log_path = os.path.join(iter_root, "iteration_log.jsonl")
@@ -781,6 +794,15 @@ def run_iterative_gp_mangle(
         qa_dir = pconf.final_spectra_qa_dir(out_root, snname)
         export_final_spec_from_full_gp(final_gp, qa_dir, variant="")
         summary["final_spec_qa_dir"] = qa_dir
+
+        if dust_params is not None:
+            from dust import deredden_final_spectra
+
+            dered_dir = pconf.final_spectra_qa_dir(
+                out_root, snname, variant=pconf.FINAL_SPECTRA_VARIANT_DEREDDENED
+            )
+            deredden_final_spectra(qa_dir, dered_dir, law=pconf.DUST_LAW, **dust_params)
+            summary["final_spec_dereddened_dir"] = dered_dir
 
     report = {
         "converged": converged,

@@ -3,6 +3,12 @@
 Produces a per-band light curve on the FINAL-spectrum epochs, plus the same curve
 interpolated to every observed photometry row, for an external chi^2 comparison.
 
+The GP is fit to the photometry as observed, so ``as_observed`` synthesizes directly to
+magnitudes comparable with the raw catalog (``mag_AB_obs``). The ``dereddened`` variant
+(``dust.py``, written at the end of step 6) gives ``mag_AB_dustcorr``; their difference
+is the SED-weighted band extinction ``A_ext_band`` per epoch (photon-counting with
+``method="true_ab"``).
+
 Two integration conventions (``method``):
 
 ``"true_ab"``
@@ -13,8 +19,7 @@ Two integration conventions (``method``):
 
 ``"wtf_band_ab"``
     Energy-weighted convention of ``what_the_flux.Band_AB`` (``zpFlux`` /
-    ``Spectrum.bandflux``), i.e. the inverse of how notebook 1 turned catalog mags
-    into the ``Flux`` column::
+    ``Spectrum.bandflux``)::
 
         m = -2.5 log10[ int F_lam T dlam / int F_lam^AB T dlam ]
 
@@ -49,7 +54,6 @@ __all__ = [
     "load_filter",
     "list_final_spectra",
     "read_final_spectrum",
-    "nb1_band_extinction_mag",
     "band_coverage_fraction",
     "synth_ab_mag",
     "synth_lightcurves_on_grid",
@@ -100,41 +104,6 @@ def read_final_spectrum(path: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     w, f, e = w[m], f[m], np.nan_to_num(e[m])
     order = np.argsort(w)
     return w[order], f[order], e[order]
-
-
-def nb1_band_extinction_mag(
-    filt_w: np.ndarray,
-    filt_t: np.ndarray,
-    *,
-    ebv_mw: float,
-    rv_mw: float = 3.1,
-    ebv_host: float = 0.0,
-    rv_host: float = 3.1,
-    redshift: float = 0.0,
-) -> float:
-    """Band extinction A_band [mag] exactly as notebook 1 removed it from the photometry.
-
-    NB1 (``what_the_flux.Band_AB.extinction`` with sncosmo ``CCM89Dust``) uses a
-    flat-spectrum band average, dropping the first/last filter samples::
-
-        ext = int T 10^(-0.4 A_lam) dlam / int T dlam
-
-    host term on the rest-frame filter (lam / (1+z)), MW term on the observed filter.
-    NB1 multiplied fluxes by 1 / (ext_host * ext_mw); re-reddening adds
-    A_band = -2.5 log10(ext_host * ext_mw) to the magnitude.
-    """
-    import extinction
-
-    def _ext(w, ebv, rv):
-        if not ebv:
-            return 1.0
-        trans = 10.0 ** (-0.4 * extinction.ccm89(w, rv * ebv, rv))
-        return integrate.trapezoid((filt_t * trans)[1:-1], w[1:-1]) / integrate.trapezoid(
-            filt_t[1:-1], w[1:-1]
-        )
-
-    ext = _ext(filt_w / (1.0 + redshift), ebv_host, rv_host) * _ext(filt_w, ebv_mw, rv_mw)
-    return float(-2.5 * np.log10(ext))
 
 
 def band_coverage_fraction(
@@ -194,27 +163,27 @@ def synth_lightcurves_on_grid(
     *,
     t0_mjd: float,
     method: SynthMethod = "true_ab",
-    apply_extinction: bool = True,
-    ext_kwargs: dict | None = None,
+    dereddened_dir: str | None = None,
     min_coverage: float = 0.99,
     excluded_bands: Iterable[str] = (),
 ) -> pd.DataFrame:
     """Long-format synthetic light curves (one row per band x FINAL spectrum).
 
-    ``apply_extinction=True`` -> columns ``mag_AB_obs`` (NB1 dust correction undone, see
-    :func:`nb1_band_extinction_mag`; compare to raw catalog mags), ``mag_AB_dustcorr``
-    (spectra as-is) and ``A_ext_band``. ``False`` -> ``mag_AB_model`` (spectra as-is only).
+    ``final_dir`` (``as_observed``) -> ``mag_AB_obs``, compared directly to raw catalog
+    mags. With ``dereddened_dir`` (same file names, ``FINAL_spectra_2dim/dereddened``)
+    also ``mag_AB_dustcorr`` and ``A_ext_band = mag_AB_obs - mag_AB_dustcorr``.
     """
     bands = list(bands)
     excluded = set(excluded_bands)
     filters = {b: load_filter(filter_paths[b]) for b in bands}
-    a_band = (
-        {b: nb1_band_extinction_mag(*filters[b], **(ext_kwargs or {})) for b in bands}
-        if apply_extinction else {}
-    )
     rows = []
     for log_phase, fn in list_final_spectra(final_dir):
         w, f, e = read_final_spectrum(os.path.join(final_dir, fn))
+        if dereddened_dir is not None:
+            dpath = os.path.join(dereddened_dir, fn)
+            if not os.path.isfile(dpath):
+                raise FileNotFoundError("No dereddened spectrum %s for %s" % (dpath, fn))
+            wd, fd, ed = read_final_spectrum(dpath)
         phase = 10.0**log_phase
         for b in bands:
             fw, ft = filters[b]
@@ -227,13 +196,14 @@ def synth_lightcurves_on_grid(
                 "spec_file": fn,
                 "coverage_frac": round(cov, 5),
                 "excluded_from_fit": b in excluded,
+                "mag_AB_obs": mag,
+                "mag_AB_obs_err": err,
             }
-            if apply_extinction:
-                row.update(mag_AB_obs=mag + a_band[b], mag_AB_obs_err=err,
-                           mag_AB_dustcorr=mag, mag_AB_dustcorr_err=err,
-                           A_ext_band=a_band[b])
-            else:
-                row.update(mag_AB_model=mag, mag_AB_model_err=err)
+            if dereddened_dir is not None:
+                mag_d, err_d, _ = synth_ab_mag(wd, fd, ed, fw, ft, method=method,
+                                               min_coverage=min_coverage)
+                row.update(mag_AB_dustcorr=mag_d, mag_AB_dustcorr_err=err_d,
+                           A_ext_band=mag - mag_d)
             rows.append(row)
     df = pd.DataFrame(rows)
     return df.sort_values(["band", "MJD"], kind="stable").reset_index(drop=True)
@@ -320,11 +290,11 @@ def add_mag_system_columns(
 
 
 def load_sn_info(info_path: str, snname: str) -> dict:
-    """``z``, ``EBV_MW``, ``EBV_host``, ``Type`` for ``snname`` from ``Inputs/SNe_Info/info.dat``."""
+    """``z``, ``EBV_MW``, ``EBV_host``, ``RV_MW``, ``RV_host``, ``Type`` from ``info.dat``."""
+    from dust import load_dust_params
+
+    d = load_dust_params(info_path, snname)
     info = pd.read_csv(info_path, comment="#", sep=r"\s+")
-    row = info[info["Name"] == snname]
-    if row.empty:
-        raise KeyError("%s not in %s" % (snname, info_path))
-    r = row.iloc[0]
-    return {"z": float(r["z"]), "EBV_MW": float(r["EBV_MW"]),
-            "EBV_host": float(r["EBV_host"]), "Type": str(r["Type"])}
+    r = info[info["Name"] == snname].iloc[0]
+    return {"z": d["redshift"], "EBV_MW": d["ebv_mw"], "EBV_host": d["ebv_host"],
+            "RV_MW": d["rv_mw"], "RV_host": d["rv_host"], "Type": str(r["Type"])}
