@@ -1,7 +1,7 @@
 ---
 title: "Kilonova SED Pipeline --- Scientific Writeup"
 subtitle: "Equations and rationale for every stage of kn-sed-pipeline"
-date: "August 2026"
+date: "October 2026"
 geometry: "margin=0.9in"
 fontsize: 11pt
 header-includes:
@@ -46,6 +46,7 @@ Throughout the pipeline:
 
 ```
 Inputs (photometry + spectroscopy + filters)
+    → 0   AB magnitudes → pivot-wavelength band fluxes (photometry)
     → 0.1 Spectral smoothing
     → 1   Dust correction (photometry)
     → 2   Early/late light-curve extrapolation (Bazin)
@@ -56,7 +57,43 @@ Inputs (photometry + spectroscopy + filters)
     → 7.5 Downstream QA / bolometric / plots
 ```
 
-Preparation notebooks are `0.1`, `1`, and `2`. Production drivers are `3_LCfit_KN_log.py`, `4_Scale_spectra_KN.py`, `5_Mangle_spectra_KN_log.py`, and `6_Iterative_GP_mangle_KN.py`.
+Step 0 is the script `0_Mag_to_Flux_KN.py`, which must pass (`--check`) before anything else runs. Preparation notebooks are `0.1`, `1`, and `2`. Production drivers are `3_LCfit_KN_log.py`, `4_Scale_spectra_KN.py`, `5_Mangle_spectra_KN_log.py`, and `6_Iterative_GP_mangle_KN.py`.
+
+## 1.4 Photometric flux convention (step 0)
+
+The input photometry consists of AB magnitudes $m_{AB}$, each in the filter system it was reported in, with photon-counting throughput $S(\lambda)$ (filter × detector QE × optics; `Inputs/Filters/<FilterSet>/<band>.dat`). The AB system is defined for photon-counting detectors,
+$$
+m_{AB} = -2.5\log_{10}\frac{\int f_\nu\, S\, d\nu/\nu}{\int f^{AB}_\nu\, S\, d\nu/\nu}
+= -2.5\log_{10}\frac{\int f_\lambda\, S\,\lambda\, d\lambda}{\int f^{AB}_\lambda\, S\,\lambda\, d\lambda},
+\qquad f^{AB}_\nu = 3631\ \mathrm{Jy},
+$$
+where the factor $\lambda$ counts photons (Oke \& Gunn 1983; Fukugita et al. 1996; Bessell \& Murphy 2012).
+
+Throughout the pipeline a photometric "flux" means the photon-weighted band-mean flux density
+$$
+\langle f_\lambda\rangle \equiv \frac{\int f_\lambda\, S\,\lambda\, d\lambda}{\int S\,\lambda\, d\lambda},
+$$
+which is exactly what the mangling step's synthetic photometry measures (§7.2). Substituting the AB definition gives an identity that holds for **any** source SED:
+$$
+\langle f_\lambda\rangle = f^{AB}_\nu\, 10^{-0.4\, m_{AB}}\, \frac{c}{\lambda_{\mathrm{piv}}^{2}},
+\qquad
+\lambda_{\mathrm{piv}} = \sqrt{\frac{\int S\,\lambda\, d\lambda}{\int S/\lambda\, d\lambda}}
+$$
+(Tokunaga \& Vacca 2005). Step 0 therefore writes
+$$
+F = 3631\,\mathrm{Jy}\times 10^{-0.4\,m_{AB}}\,\frac{c}{\lambda_{\mathrm{piv}}^{2}},
+\qquad
+\sigma_F = F\,\frac{\ln 10}{2.5}\,\sigma_m ,
+$$
+into the `Flux`/`Flux_err` columns of `Inputs/Photometry/1_LCs_flux_raw/<SN>.dat`. The pivot wavelength depends only on the filter. By contrast, the effective wavelength $\lambda_{\mathrm{eff}} = \int \lambda f_\lambda S\lambda\,d\lambda / \int f_\lambda S\lambda\,d\lambda$ depends on the SED, and converting at any other wavelength $\lambda_x$ biases the flux by $5\log_{10}(\lambda_{\mathrm{piv}}/\lambda_x)$ mag. With this convention, comparisons between model and data in magnitude space (synthetic $m_{AB}$ versus catalog $m_{AB}$) and in flux space ($\langle f_\lambda\rangle$ versus `Flux`) are equivalent. The colour of the SED within each band is handled exactly by the band integrals, so no colour-dependent conversion is needed as long as every comparison is band-integrated.
+
+Step 0 builds the raw photometry table either from a compiled-photometry JSON (one record per published magnitude, with telescope, instrument, filter, magnitude system, and reference) or by recomputing the fluxes of an existing table. Magnitudes are used as given; they must not yet be corrected for extinction, which notebook 1 applies (§3). Each magnitude keeps its published system, recorded in a `MagSys` column (AB or Vega). For a Vega magnitude the band flux is $\langle f_\lambda\rangle = 10^{-0.4\,m_{\rm Vega}}\langle f^{\rm Vega}_\lambda\rangle$, with $f^{\rm Vega}_\lambda$ the CALSPEC spectrum of Vega (`Inputs/Standards/alpha_lyr_stis_006.fits`) and Vega defined as 0 mag in every band. Equivalently, the AB pivot identity is applied to
+$$
+m_{AB} = m_{\mathrm{Vega}} - 2.5\log_{10}\frac{\int f^{\mathrm{Vega}}_\lambda\, S\,\lambda\, d\lambda}{\int f^{AB}_\lambda\, S\,\lambda\, d\lambda},
+$$
+an offset that, like the pivot identity, does not depend on the source SED, so storing a point in Vega or converting it to AB gives the same flux. Rows in other systems or without a filter curve are excluded and reported. Optionally, rows flagged as repeated observations in the compilation are dropped (`--drop-repeated`), or only the rows used by Villar et al. (2017) are kept (`--villar-used-only`).
+
+Earlier AT2017gfo inputs converted at a blue-shifted "effective wavelength" (a double cumulative integral placed $\lambda_x$ near the blue edge of each filter), making `Flux` 0.07--0.6 mag too bright depending on band. Step 0 replaces that conversion; its `--check` mode verifies an input file without modifying it.
 
 \newpage
 
@@ -230,7 +267,7 @@ F_{\mathrm{band}}
 {\displaystyle\int T(\lambda)\, \lambda\, d\lambda},
 $$
 
-with uncertainty propagated from $F_\lambda$ errors through the same quadrature. Effective wavelength $\lambda_{\mathrm{eff}}$ is used to place the constraint on the log-wavelength axis.
+with uncertainty propagated from $F_\lambda$ errors through the same quadrature. This is the photon-weighted band mean $\langle f_\lambda\rangle$ of §1.4, so it is directly comparable to the step-0 photometric fluxes. Effective wavelength $\lambda_{\mathrm{eff}}$ is used only to place the constraint on the log-wavelength axis, not to convert between magnitudes and fluxes.
 
 Only bands whose validity window (from `<SN>_band_mjd_ranges.json`) contains the spectrum MJD, and whose throughput overlaps the spectrum, contribute constraints.
 
@@ -433,6 +470,7 @@ When iteration stops, products are copied under `Outputs/<SN>/twodim_iter/final/
 ## 10.2 Notebooks 7.5 and helpers
 
 - `7.5_comparison_check_log.ipynb` integrates final spectra through filters and compares to the light-curve fit (`comparison_check_log_utils.py`, `comparison_trapz_lc.py`).
+- `7.6_synthetic_photometry_final_gp.ipynb` writes synthetic AB magnitudes of `FINAL_spectra_2dim/as_observed` through every observed filter, on the GP epochs and interpolated to each input-photometry row, for chi-squared tests against the input data (`synthetic_photometry_export.py`). Its default `true_ab` method is the photon-counting definition of §1.4.
 - `7.5_spectra.ipynb` / `7.5_alternate.ipynb` overlay spectra.
 - `bolometric_luminosity.ipynb` constructs bolometric light curves from the SED surface.
 - `rimangle_log_spectrum.py` preserves the convention that some on-disk extended spectra store $\log_{10} F$ while in-memory analysis uses linear $F$.
@@ -469,6 +507,7 @@ Edit `Codes/pipeline_config.py` for object-specific $t_0$, redshift, and experim
 
 ```
 Codes/
+  0_Mag_to_Flux_KN.py                  step 0: AB mag -> pivot-wavelength band flux
   0.1_Smooth_spectra_KN.ipynb          spectral smoothing
   1_LC_DustCorrection_KN.ipynb         dust correction
   2_LC_modelRising_KN_fullfit_log.ipynb  Bazin / rising extrapolation
@@ -480,7 +519,10 @@ Codes/
   pipeline_config.py                   shared constants and path helpers
   filter_plot_config.json              band colours / exclusions
   7.5_*.ipynb, bolometric_*.ipynb      downstream QA
+  7.6_synthetic_photometry_final_gp.ipynb  synthetic AB photometry of the final SED
   helper_scripts/
+    photometry_mag_to_flux.py          step 0
+    synthetic_photometry_export.py     notebook 7.6
     lc_gp_fit.py, lc_gp_kernels.py     step 3
     lc_bazin_models.py, lc_bazin_fit.py  step 2 helpers
     spectra_pre_scale.py               step 4
@@ -498,6 +540,7 @@ Inputs/
   Spectroscopy/{1,2}_spec_*/           original / smoothed / prescaled
   Filters/GeneralFilters/              throughput curves
   SNe_Info/info.dat                    coordinates / types
+  Standards/alpha_lyr_stis_006.fits    Vega spectrum (zero point for MagSys = Vega)
   2DIM_priors/                         optional 2D priors
 Outputs/<SN>/
   fitted_phot*.dat                     step 3
@@ -512,6 +555,12 @@ docs/
 # Appendix B: References
 
 - Vincenzi et al. 2019, PyCoCo templates: https://arxiv.org/abs/1908.05228
+- Villar et al. 2017, AT2017gfo photometry compilation: https://ui.adsabs.harvard.edu/abs/2017ApJ...851L..21V
+- Bohlin 2014 / CALSPEC, Vega (alpha Lyr) STIS spectrum: https://www.stsci.edu/hst/instrumentation/reference-data-for-calibration-and-tools/astronomical-catalogs/calspec
+- Oke & Gunn 1983, AB magnitude system: https://ui.adsabs.harvard.edu/abs/1983ApJ...266..713O
+- Fukugita et al. 1996, SDSS photometric system: https://ui.adsabs.harvard.edu/abs/1996AJ....111.1748F
+- Tokunaga & Vacca 2005, photometric quantities (pivot / effective wavelength): https://ui.adsabs.harvard.edu/abs/2005PASP..117..421T
+- Bessell & Murphy 2012, photon-counting vs energy-integrating responses: https://ui.adsabs.harvard.edu/abs/2012PASP..124..140B
 - Bazin et al. 2011, light-curve functional form: https://arxiv.org/abs/1109.0948
 - george documentation: https://george.readthedocs.io/
 - Collaborator two-dimensional GP configuration notes (additive Matérn 5/2, jitter floors, early-time tanh blend) are mirrored in `Codes/helper_scripts/twodim_gp/` and in the historical `ryan-final-gp/WRITEUP` handoff.

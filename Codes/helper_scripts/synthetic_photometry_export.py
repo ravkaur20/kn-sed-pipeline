@@ -55,6 +55,7 @@ __all__ = [
     "synth_lightcurves_on_grid",
     "interpolate_to_observations",
     "load_sn_info",
+    "add_mag_system_columns",
 ]
 
 
@@ -285,6 +286,36 @@ def interpolate_to_observations(
         out.loc[sel, "nearest_gp_epoch_dt_days"] = np.min(
             np.abs(mjd_obs[:, None] - gmjd[None, :]), axis=1
         )
+    return out
+
+
+def add_mag_system_columns(
+    at_data: pd.DataFrame, obs: pd.DataFrame, ab_minus_vega: dict[str, float]
+) -> pd.DataFrame:
+    """Express each synthetic magnitude in the system of the matching input row.
+
+    ``obs`` is the raw photometry table (its optional ``MagSys`` column is ``AB`` or
+    ``Vega``; missing -> AB) and ``ab_minus_vega`` maps band -> ``m_AB - m_Vega``
+    (``photometry_mag_to_flux.vega_to_ab_offset``) for every band with Vega rows.
+    Adds ``MagSys``, ``ab_minus_insys`` (0 for AB rows) and, for each ``mag_AB_<x>``
+    column, ``mag_<x>_insys`` (+ ``_err``) to compare directly with the input ``Mag``.
+    """
+    out = at_data.copy()
+    msys = (obs["MagSys"].fillna("").astype(str).str.strip() if "MagSys" in obs.columns
+            else pd.Series("AB", index=obs.index))
+    msys = msys.replace({"": "AB"}).str.upper().map({"AB": "AB", "VEGA": "Vega"})
+    out["MagSys"] = msys.loc[out["input_row"]].to_numpy()
+    vega = (out["MagSys"] == "Vega").to_numpy()
+    missing = sorted(set(out.loc[vega, "band"]) - set(ab_minus_vega))
+    if missing:
+        raise KeyError("No AB-Vega offset for Vega band(s) %s" % missing)
+    offset = np.where(vega, out["band"].map(ab_minus_vega).astype(float).fillna(0.0), 0.0)
+    out["ab_minus_insys"] = offset
+    for c in [c for c in _mag_columns(at_data) if not c.endswith("_err")]:
+        tag = c[len("mag_AB_"):]
+        out["mag_%s_insys" % tag] = out[c] - offset
+        if c + "_err" in out.columns:
+            out["mag_%s_insys_err" % tag] = out[c + "_err"]
     return out
 
 

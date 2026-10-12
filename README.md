@@ -70,11 +70,11 @@ All inputs (photometry, spectroscopy, filter transmission curves, and supernova 
 
 #### 1. Photometry
 
-Place photometry in flux units under the staged folders in `Inputs/Photometry/`. The pipeline uses these stages in order:
+Start from **AB magnitudes** in the filter system each measurement was reported in (Swope, DECam, GROND, …). **Step 0** (`Codes/0_Mag_to_Flux_KN.py`) builds the raw photometry file from a compiled-photometry JSON (`--from-json`), or recomputes the fluxes of an existing raw file (`--redo-fluxes`), always converting magnitudes to fluxes at each filter's pivot wavelength (see [Magnitudes and fluxes](#magnitudes-and-fluxes-step-0) below). The pipeline then uses these stages in order:
 
 | Folder | Role |
 |--------|------|
-| `Inputs/Photometry/1_LCs_flux_raw/` | Observed fluxes before dust correction (also used to build band Modified Julian Date windows) |
+| `Inputs/Photometry/1_LCs_flux_raw/` | Observed AB magnitudes and the step-0 band fluxes, before dust correction (also used to build band Modified Julian Date windows) |
 | `Inputs/Photometry/2_LCs_dust_corrected/` | Dust-corrected fluxes written by notebook 1 |
 | `Inputs/Photometry/3_LCs_extrapolated/` | Early- and late-time extrapolated light curves written by notebook 2; **this is the input to step 3** |
 
@@ -84,14 +84,51 @@ Each light-curve file is named `<SN>.dat` (for example `AT2017gfo.dat`). After n
 MJD  band  Flux  Flux_err  FilterSet  Instr  Phase  Log_Phase  Log_Flux  Log_Flux_err
 ```
 
-A raw-flux file under `1_LCs_flux_raw/` may instead look like:
+A raw file under `1_LCs_flux_raw/` is comma-separated and looks like:
 
 ```text
-MJD,Mag,Mag_err,Flux,Flux_err,band,Instr,FilterSet
-57982.981,17.48,0.02,2.23070668586e-16,4.10911340341e-18,Swope_i,E2V4kx4kccd,GeneralFilters
+MJD,Mag,Mag_err,Flux,Flux_err,band,Instr,FilterSet,MagSys
+57982.981,17.48,0.02,1.89987296516e-16,3.49969533452e-18,Swope_i,E2V4kx4kccd,GeneralFilters,AB
+57984.751,19.06,0.07,9.11356117414e-17,5.87573002903e-18,Sinistro_V,Sinistro,GeneralFilters,Vega
 ```
 
-**If your photometry is already dust-corrected and already extended at early and late times** (or you do not want those steps), you may skip notebooks 1 and 2 and place the finished light curve directly in `Inputs/Photometry/3_LCs_extrapolated/<SN>.dat`. You still need a raw-flux file under `1_LCs_flux_raw/` so that step 5 can build per-band Modified Julian Date validity windows when they are missing.
+`band` must match a filter file `Inputs/Filters/<FilterSet>/<band>.dat`. Files written by step 0 end with a **`MagSys`** column (`AB` or `Vega`) giving the system of `Mag`; it is optional, and a missing column or blank value means AB. `Flux`/`Flux_err` (erg s⁻¹ cm⁻² Å⁻¹) are always written by step 0. You can either let step 0 create this file from a JSON (below), or write `MJD`, `Mag`, `Mag_err`, `band`, `Instr`, `FilterSet` (and `MagSys` if any are Vega) yourself, with placeholder `Flux`/`Flux_err`, and run `--redo-fluxes`. Steps 1–6 read only `MJD`, `band`, `Flux`, `Flux_err` (and pass `FilterSet`/`Instr` through), so the extra column does not affect them. Only QA code reads `Mag` (notebooks 7.5/7.6, `comparison_trapz_lc.py`, `plotting-final.ipynb`); 7.6 reports synthetic magnitudes in each row's own system (`mag_<x>_insys`), while the 7.5 notebooks and `plotting-final.ipynb` still plot `Mag` as AB, which is off by $m_{AB}-m_{\rm Vega}$ for Vega rows (about $-0.01$ mag for the current Sinistro $V$ points).
+
+**Compiled-photometry JSON (recommended source).** A list of records, one per observation, with at least `MJD`, `Telescope`, `Instrument`, `Filter`, `Villar Mag`, `Villar Mag_err`, and `AB/VEGA/Etc` (the `KN_SED_Data*.json` layout; other magnitude keys via `--mag-key`/`--mag-err-key`). Magnitudes are used **exactly as given**: whether Galactic/host extinction has been removed from them must be decided in the JSON *before* step 0 (the pipeline expects **un-dereddened** magnitudes, because notebook 1 applies the dust correction). Step 0 then:
+
+- maps each row to a filter curve `<Instrument>_<Filter>`, else `<Telescope>_<Filter>` (exact match first, then case-insensitive, e.g. `omegacam_g` → `OmegaCam_g.dat`);
+- keeps **Vega** magnitudes in Vega (`MagSys = Vega`) and computes their flux from the Vega zero point, using the Vega spectrum `Inputs/Standards/alpha_lyr_stis_006.fits` (CALSPEC; Vega = 0 mag in every band; override with `--vega-spectrum`);
+- drops rows without a numeric MJD/magnitude/error, upper limits, other magnitude systems, and rows with no matching filter curve — add the missing curve to `Inputs/Filters/GeneralFilters/` to keep them;
+- with `--drop-repeated`, drops rows marked `R` in `Repeated obs` (the same measurement copied from another paper) and keeps everything else; with `--villar-used-only`, keeps only rows marked `*` in `Used in Villar model?`;
+- keeps rows with no magnitude system (`-`) as AB, and rows that repeat an MJD+band (the same epoch from several papers), but **flags** both;
+- skips a repeated CSV header record if the JSON has one;
+- writes the per-row decisions to `Outputs/<SN>/<SN>_step0_json_rows.csv` and prints a summary.
+
+##### Magnitudes and fluxes (step 0)
+
+The pipeline compares data and model as **band-integrated** quantities. The mangling step fits the photon-weighted band-mean flux $\langle f_\lambda\rangle = \int f_\lambda S\lambda\,d\lambda / \int S\lambda\,d\lambda$, where $S(\lambda)$ is the photon-counting throughput in the filter file, and synthetic AB magnitudes use the same (standard, photon-counting) AB definition. For an AB magnitude this band mean is exact and independent of the source SED:
+
+$$\langle f_\lambda\rangle = 3631\,\mathrm{Jy}\times 10^{-0.4\,m_{AB}}\,\frac{c}{\lambda_{\rm piv}^2},\qquad \lambda_{\rm piv}=\sqrt{\frac{\int S\lambda\,d\lambda}{\int S/\lambda\,d\lambda}}$$
+
+with $\sigma_F = F\cdot 0.4\ln 10\cdot\sigma_m$. Step 0 applies exactly this at each filter's **pivot** wavelength. Do **not** convert at an "effective", mean, or median wavelength — those give fluxes inconsistent with the rest of the pipeline (an earlier version of the AT2017gfo input used a blue-shifted wavelength and was 0.07–0.6 mag too bright; see issue #3). For rows with `MagSys = Vega` the zero point is Vega instead: $\langle f_\lambda\rangle = 10^{-0.4\,m_{\rm Vega}}\,\langle f^{\rm Vega}_\lambda\rangle$, which equals the AB formula applied to $m_{\rm Vega} + (m_{AB}-m_{\rm Vega})$ with the exact, SED-independent band offset $m_{AB}-m_{\rm Vega}=-2.5\log_{10}\langle f^{\rm Vega}_\lambda\rangle/\langle f^{AB}_\lambda\rangle$. The flux is the same whether a point is stored in Vega or converted to AB; only the `Mag` column differs. Other systems are rejected.
+
+Step 0 has three modes (exactly one is required):
+
+```bash
+cd "$COCO_PATH/Codes"
+# build 1_LCs_flux_raw/<SN>.dat from a compiled-photometry JSON
+python 0_Mag_to_Flux_KN.py --snname AT2017gfo --from-json /path/to/KN_SED_DATA_dust_corrected.json
+# keep an existing raw .dat as is, recompute only Flux/Flux_err (no format change)
+python 0_Mag_to_Flux_KN.py --snname AT2017gfo --redo-fluxes --overwrite
+# verify only; exits 1 if any Flux is stale; never writes
+python 0_Mag_to_Flux_KN.py --snname AT2017gfo --check
+```
+
+> **⚠️ Back up before writing.** `--from-json` and `--redo-fluxes` write `Inputs/Photometry/1_LCs_flux_raw/<SN>.dat` by default. If that file already exists the script **refuses to run** unless you pass `--overwrite`. **Rename the old file first** (e.g. `mv AT2017gfo.dat AT2017gfo_old.dat`) so nothing is lost, or write elsewhere with `--output`.
+
+Run step 0 whenever the photometry or any filter curve changes, and `--check` it before every run. Use `--input` to check or redo a raw file at another path. For JSON input, `--drop-repeated` removes only rows flagged as repeated observations (`R`), while `--villar-used-only` keeps only the rows Villar et al. used (which also drops rows excluded for other reasons).
+
+**If your photometry is already dust-corrected and already extended at early and late times** (or you do not want those steps), you may skip notebooks 1 and 2 and place the finished light curve directly in `Inputs/Photometry/3_LCs_extrapolated/<SN>.dat`. Its fluxes must follow the same pivot-wavelength AB convention as step 0. You still need a raw file under `1_LCs_flux_raw/` so that step 5 can build per-band Modified Julian Date validity windows when they are missing.
 
 #### 2. Spectroscopy
 
@@ -141,6 +178,7 @@ The overall flow is:
 
 ```mermaid
 flowchart LR
+  s0["0 Mag → flux"]
   nb01["0.1 Smooth spectra"]
   nb1["1 Dust correction"]
   nb2["2 Bazin extrapolation"]
@@ -150,16 +188,38 @@ flowchart LR
   s6["6 Iterative 2D GP"]
   qa["7.5 Downstream QA"]
 
+  s0 --> nb1
   nb01 --> nb1 --> nb2 --> s3 --> s4 --> s5 --> s6 --> qa
 ```
 
+- Script **0** converts the raw AB magnitudes to band fluxes (run it, or `--check` it, first).
 - Notebooks **0.1 → 1 → 2** prepare smoothed spectra and extrapolated photometry.
 - Scripts **3 → 4 → 5 → 6** are the production chain you re-run most often.
 - Notebooks **7.5** and related scripts inspect the final products.
 
+#### Step 0: magnitudes to fluxes (always first)
+
+```bash
+cd "$COCO_PATH/Codes"
+python 0_Mag_to_Flux_KN.py --snname AT2017gfo --check
+```
+
+If the check fails, or you have new photometry, (re)build the raw file — **after renaming the old one**:
+
+```bash
+mv ../Inputs/Photometry/1_LCs_flux_raw/AT2017gfo.dat ../Inputs/Photometry/1_LCs_flux_raw/AT2017gfo_old.dat
+python 0_Mag_to_Flux_KN.py --snname AT2017gfo --from-json /path/to/photometry.json
+# or, to keep the existing rows and only fix the fluxes:
+python 0_Mag_to_Flux_KN.py --snname AT2017gfo --redo-fluxes --input ../Inputs/Photometry/1_LCs_flux_raw/AT2017gfo_old.dat
+```
+
+If step 0 changes the raw file, everything downstream of it is stale: re-run notebooks 1 and 2 and then steps 3–6.
+
+> **AT2017gfo note (October 2026).** The shipped raw `Flux` column was regenerated with step 0 (issue #3). The shipped `2_LCs_dust_corrected/` and `3_LCs_*` light curves, and any existing `Outputs/`, were built from the old (too bright) fluxes. Regenerate them (notebooks 1–2, then steps 3–6) before using results.
+
 #### Preparation notebooks (interactive)
 
-From Jupyter, open and run in order:
+From Jupyter, open and run in order (after step 0):
 
 1. **`Codes/0.1_Smooth_spectra_KN.ipynb`** — Smooths raw spectra and writes `Inputs/Spectroscopy/2_spec_smoothed/<SN>/` plus `2_spec_lists_smoothed/<SN>.list`.
 2. **`Codes/1_LC_DustCorrection_KN.ipynb`** — Applies Galactic (and optional host) dust correction and writes `Inputs/Photometry/2_LCs_dust_corrected/<SN>.dat`.
@@ -197,6 +257,7 @@ What each script does, in brief:
 
 | Step | Driver | What it does | Key products |
 |------|--------|--------------|--------------|
+| 0 | `0_Mag_to_Flux_KN.py` | Builds the raw photometry file from a compiled-photometry JSON (`--from-json`) or recomputes only its fluxes (`--redo-fluxes`), converting AB mags at each filter's pivot wavelength; `--check` verifies only | `Inputs/Photometry/1_LCs_flux_raw/<SN>.dat`, `Outputs/<SN>/<SN>_step0_json_rows.csv` (JSON mode) |
 | 3 | `3_LCfit_KN_log.py` | Fits each band’s light curve in log₁₀ flux with a one-dimensional Gaussian Process; evaluates the fit at every spectroscopy Modified Julian Date | `Outputs/<SN>/fitted_phot4mangling_<SN>.dat`, `fitted_phot_logspace_<SN>.dat` |
 | 4 | `4_Scale_spectra_KN.py` | Groups near-simultaneous arms and applies multiplicative flux scales so seams match | `Inputs/.../2_spec_prescaled/`, `<SN>_spec_scale_groups.json`, `<SN>_spec_scale_report.json` |
 | 5 | `5_Mangle_spectra_KN_log.py` | Builds a smooth wavelength-dependent mangling mask so synthetic photometry matches the step-3 fit; applies it to prescaled spectra | `Outputs/<SN>/mangled_spectra/`, `figs/mangle_epoch/`, `figs/mangle_nb5/` |
@@ -209,6 +270,7 @@ The pause between the two step-4 commands is intentional. After `--write-groups-
 After step 6 finishes, you can inspect and publish results with:
 
 - `Codes/7.5_comparison_check_log.ipynb` — synthetic photometry versus the light-curve fit
+- `Codes/7.6_synthetic_photometry_final_gp.ipynb` — writes synthetic AB photometry of the final GP through every observed filter (on the GP epochs and at each input-photometry row) for chi-squared comparisons against the input data
 - `Codes/7.5_spectra.ipynb` / `Codes/7.5_alternate.ipynb` — spectrum overlays
 - `Codes/bolometric_luminosity.ipynb` — bolometric constructions
 - `Codes/LCfit_publication_plots.ipynb` / `Codes/plotting-final.ipynb` — publication figures
