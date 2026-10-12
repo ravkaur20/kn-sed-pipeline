@@ -36,6 +36,7 @@ __all__ = [
     "load_dust_params",
     "deredden_spectrum",
     "deredden_final_spectra",
+    "dust_params_mismatch",
 ]
 
 
@@ -135,3 +136,24 @@ def deredden_final_spectra(
     with open(os.path.join(dst_dir, DUST_PARAMS_JSON), "w", encoding="utf-8") as fh:
         json.dump(meta, fh, indent=2)
     return written
+
+
+def dust_params_mismatch(dered_dir: str, *, law: str, **dust: float) -> list[str]:
+    """Differences between ``dered_dir/dust_params.json`` and the given law/parameters.
+
+    Empty when they agree; one ``"key: on disk X, now Y"`` string per difference
+    (a missing JSON is reported as one entry).
+    """
+    path = os.path.join(dered_dir, DUST_PARAMS_JSON)
+    if not os.path.isfile(path):
+        return ["%s missing" % path]
+    with open(path, encoding="utf-8") as fh:
+        on_disk = json.load(fh)
+    out = []
+    for key, now in [("law", law), *dust.items()]:
+        old = on_disk.get(key)
+        same = old == now if isinstance(now, str) else (
+            old is not None and np.isclose(float(old), float(now), rtol=0, atol=1e-9))
+        if not same:
+            out.append("%s: on disk %r, now %r" % (key, old, now))
+    return out

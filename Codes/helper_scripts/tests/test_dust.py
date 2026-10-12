@@ -116,6 +116,13 @@ class TestDereddenFinalSpectra(unittest.TestCase):
             self.assertEqual(meta["n_spectra"], 1)
             self.assertEqual(meta["rv_host"], 2.6)
 
+            self.assertEqual(dust.dust_params_mismatch(dst, law="ccm89", **params), [])
+            changed = dict(params, ebv_mw=0.2)
+            diff = dust.dust_params_mismatch(dst, law="fitzpatrick99", **changed)
+            self.assertEqual(len(diff), 2)
+            self.assertTrue(diff[0].startswith("law:") and diff[1].startswith("ebv_mw:"))
+            self.assertEqual(len(dust.dust_params_mismatch(src, law="ccm89", **params)), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
