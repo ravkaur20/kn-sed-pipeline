@@ -42,7 +42,13 @@ __all__ = [
     "read_raw_photometry",
     "write_raw_photometry",
     "bands_report_table",
+    "JsonColumns",
+    "load_photometry_json",
+    "json_to_raw_photometry",
+    "RAW_COLUMNS",
 ]
+
+RAW_COLUMNS = ["MJD", "Mag", "Mag_err", "Flux", "Flux_err", "band", "Instr", "FilterSet"]
 
 
 def pivot_wavelength(filt_w: np.ndarray, filt_t: np.ndarray) -> float:
@@ -119,7 +125,7 @@ def _check_ab_only(df: pd.DataFrame) -> None:
 
 
 def _to_float(series: pd.Series) -> np.ndarray:
-    return pd.to_numeric(series.replace("", np.nan), errors="coerce").to_numpy(dtype=float)
+    return pd.to_numeric(series, errors="coerce").to_numpy(dtype=float)
 
 
 def convert_raw_photometry(
@@ -204,3 +210,150 @@ def bands_report_table(report: Iterable[BandConversion]) -> pd.DataFrame:
             for r in report
         ]
     )
+
+
+# ---------------------------------------------------------------------------
+# Compiled-photometry JSON -> raw photometry table
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class JsonColumns:
+    """Key names in the compiled photometry JSON (a list of one dict per observation)."""
+
+    mjd: str = "MJD"
+    instrument: str = "Instrument"
+    telescope: str = "Telescope"
+    filter: str = "Filter"
+    mag: str = "Villar Mag"
+    mag_err: str = "Villar Mag_err"
+    system: str = "AB/VEGA/Etc"
+    used: str = "Used in Villar model?"
+    reference: str = "Refrence"
+
+
+_MISSING = {"", "-", "nan", "none"}
+
+
+def load_photometry_json(path: str, cols: JsonColumns = JsonColumns()) -> pd.DataFrame:
+    """Read the compiled photometry JSON as text columns, dropping repeated header records.
+
+    The CSV->JSON export sometimes keeps the CSV header as a first record
+    (``{"MJD": "MJD", ...}``); such rows are removed.
+    """
+    df = pd.read_json(path, orient="records", dtype=False)
+    df = df.astype(object).where(df.notna(), "").astype(str).apply(lambda s: s.str.strip())
+    missing = {cols.mjd, cols.filter, cols.mag, cols.mag_err} - set(df.columns)
+    if missing:
+        raise ValueError("%s is missing required keys %s" % (path, sorted(missing)))
+    is_header = df[cols.mjd] == cols.mjd
+    return df[~is_header].reset_index(drop=True)
+
+
+def _filter_index(filters_root: str, filter_set: str) -> tuple[dict[str, str], dict[str, str]]:
+    d = os.path.join(filters_root, filter_set)
+    stems = sorted(os.path.splitext(f)[0] for f in os.listdir(d)
+                   if f.endswith((".dat", ".txt")) and os.path.isfile(os.path.join(d, f)))
+    exact = {s: s for s in stems}
+    lower: dict[str, str] = {}
+    for s in stems:
+        lower.setdefault(s.lower(), s)
+    return exact, lower
+
+
+def _match_band(row: pd.Series, cols: JsonColumns, exact: dict, lower: dict) -> tuple[str | None, str]:
+    """Filter-file stem for a JSON row: <Instrument>_<Filter>, then <Telescope>_<Filter>,
+    each exact first and then case-insensitive. Returns (stem or None, how)."""
+    filt = row.get(cols.filter, "")
+    keys = []
+    for col, label in ((cols.instrument, "instrument"), (cols.telescope, "telescope")):
+        v = row.get(col, "")
+        if v.lower() not in _MISSING and filt.lower() not in _MISSING:
+            keys.append(("%s_%s" % (v, filt), label))
+    for key, label in keys:
+        if key in exact:
+            return exact[key], label
+    for key, label in keys:
+        if key.lower() in lower:
+            return lower[key.lower()], label + " (case-insensitive)"
+    return None, ", ".join(k for k, _ in keys) or "no instrument/telescope"
+
+
+def json_to_raw_photometry(
+    df_json: pd.DataFrame,
+    filters_root: str,
+    *,
+    cols: JsonColumns = JsonColumns(),
+    filter_set: str = "GeneralFilters",
+    villar_used_only: bool = False,
+) -> tuple[pd.DataFrame, pd.DataFrame, list[BandConversion]]:
+    """Build the ``1_LCs_flux_raw`` table from compiled-photometry JSON records.
+
+    Magnitudes are taken as given (any dust/extinction handling must already be reflected
+    in the JSON). A row is kept when it has a numeric MJD, magnitude and magnitude error,
+    an AB (or unspecified, assumed AB) magnitude system, and a matching filter curve.
+    Fluxes are computed at the filter pivot wavelength (:func:`convert_raw_photometry`).
+
+    Returns ``(raw_df, rows_report, band_report)``. ``rows_report`` has one line per JSON
+    row with ``status`` (``kept`` / ``kept_assumed_AB`` / ``dropped``) and ``reason``.
+    """
+    exact, lower = _filter_index(filters_root, filter_set)
+    out_rows, report = [], []
+    for i, row in df_json.iterrows():
+        mag_s, err_s = row[cols.mag], row[cols.mag_err]
+        mjd = pd.to_numeric(row[cols.mjd], errors="coerce")
+        mag = pd.to_numeric(mag_s, errors="coerce")
+        err = pd.to_numeric(err_s, errors="coerce")
+        system = row.get(cols.system, "").upper()
+        band, how = _match_band(row, cols, exact, lower)
+        status, reason = "kept", ""
+        if villar_used_only and row.get(cols.used, "") != "*":
+            status, reason = "dropped", "not used in Villar model"
+        elif mag_s.startswith((">", "<")):
+            status, reason = "dropped", "limit (%s)" % mag_s
+        elif not (np.isfinite(mjd) and np.isfinite(mag) and np.isfinite(err)):
+            status, reason = "dropped", "non-numeric MJD/mag/mag_err"
+        elif system.lower() not in _MISSING and system != "AB":
+            status, reason = "dropped", "magnitude system %r (only AB supported)" % row.get(cols.system)
+        elif band is None:
+            status, reason = "dropped", "no filter curve (tried %s)" % how
+        elif system.lower() in _MISSING:
+            status, reason = "kept_assumed_AB", "no magnitude system given; assumed AB"
+        if status != "dropped" and how.endswith("(case-insensitive)"):
+            reason = "; ".join(r for r in (reason, "filter matched case-insensitively") if r)
+        report.append({
+            "json_row": i, cols.mjd: row[cols.mjd], cols.telescope: row.get(cols.telescope, ""),
+            cols.instrument: row.get(cols.instrument, ""), cols.filter: row[cols.filter],
+            cols.reference: row.get(cols.reference, ""), "band": band or "",
+            "status": status, "reason": reason,
+        })
+        if status == "dropped":
+            continue
+        instr = row.get(cols.instrument, "")
+        if instr.lower() in _MISSING:
+            instr = row.get(cols.telescope, "")
+        out_rows.append({
+            "MJD": row[cols.mjd],
+            "Mag": FLUX_FLOAT_FORMAT % mag,
+            "Mag_err": FLUX_FLOAT_FORMAT % err,
+            "Flux": "",
+            "Flux_err": "",
+            "band": band,
+            "Instr": instr,
+            "FilterSet": filter_set,
+        })
+    raw = pd.DataFrame(out_rows, columns=RAW_COLUMNS)
+    rows_report = pd.DataFrame(report)
+    # Compilations can list the same epoch from several papers/reductions: keep, but flag.
+    kept = rows_report["status"] != "dropped" if len(rows_report) else pd.Series(dtype=bool)
+    if kept.any():
+        key = pd.to_numeric(rows_report.loc[kept, cols.mjd]).round(5).astype(str) + "|" + rows_report.loc[kept, "band"]
+        dup_idx = key[key.duplicated(keep=False)].index
+        rows_report.loc[dup_idx, "reason"] = [
+            "; ".join(r for r in (old, "same MJD and band as another kept row") if r)
+            for old in rows_report.loc[dup_idx, "reason"]
+        ]
+    if raw.empty:
+        return raw, rows_report, []
+    raw, band_report = convert_raw_photometry(raw, filters_root, default_filter_set=filter_set)
+    return raw, rows_report, band_report
