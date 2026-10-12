@@ -123,5 +123,30 @@ class TestGridAndInterpolation(unittest.TestCase):
         self.assertAlmostEqual(out.loc[3, "mag_AB_model"], 20.0, places=3)
 
 
+class TestMagSystemColumns(unittest.TestCase):
+    def test_vega_rows_shifted_ab_rows_unchanged(self):
+        at = pd.DataFrame({
+            "input_row": [0, 1, 2], "band": ["X_V", "X_V", "X_g"],
+            "mag_AB_obs": [19.0, 19.5, 18.0], "mag_AB_obs_err": [0.1, 0.1, 0.2],
+        })
+        obs = pd.DataFrame({"band": ["X_V", "X_V", "X_g"], "MagSys": ["Vega", "AB", None]})
+        out = sp.add_mag_system_columns(at, obs, {"X_V": -0.02})
+        self.assertEqual(list(out["MagSys"]), ["Vega", "AB", "AB"])
+        np.testing.assert_allclose(out["mag_obs_insys"], [19.02, 19.5, 18.0])
+        np.testing.assert_allclose(out["mag_obs_insys_err"], [0.1, 0.1, 0.2])
+        np.testing.assert_allclose(out["ab_minus_insys"], [-0.02, 0.0, 0.0])
+
+    def test_no_magsys_column_means_ab(self):
+        at = pd.DataFrame({"input_row": [0], "band": ["X_g"], "mag_AB_model": [18.0]})
+        out = sp.add_mag_system_columns(at, pd.DataFrame({"band": ["X_g"]}), {})
+        self.assertEqual(out.loc[0, "MagSys"], "AB")
+        self.assertEqual(out.loc[0, "mag_model_insys"], 18.0)
+
+    def test_missing_vega_offset_raises(self):
+        at = pd.DataFrame({"input_row": [0], "band": ["X_V"], "mag_AB_obs": [19.0]})
+        with self.assertRaises(KeyError):
+            sp.add_mag_system_columns(at, pd.DataFrame({"band": ["X_V"], "MagSys": ["Vega"]}), {})
+
+
 if __name__ == "__main__":
     unittest.main()

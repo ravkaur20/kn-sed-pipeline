@@ -2,10 +2,11 @@
 """Pipeline step 0: AB magnitudes -> band-mean F_lambda raw photometry file.
 
 Produces / maintains ``Inputs/Photometry/1_LCs_flux_raw/<SN>.dat``
-(``MJD,Mag,Mag_err,Flux,Flux_err,band,Instr,FilterSet``) with fluxes computed from AB
-magnitudes at each filter's **pivot wavelength**::
+(``MJD,Mag,Mag_err,Flux,Flux_err,band,Instr,FilterSet,MagSys``) with band-mean fluxes
+computed from the magnitudes at each filter's **pivot wavelength**::
 
-    Flux     = 3631 Jy * 10**(-0.4 Mag) * c / lam_piv**2
+    Flux     = 3631 Jy * 10**(-0.4 m_AB) * c / lam_piv**2      (MagSys = AB, or no column)
+    m_AB     = Mag + (m_AB - m_Vega)_band                          (MagSys = Vega)
     Flux_err = Flux * 0.4 ln(10) * Mag_err
 
 This is the photon-weighted band-mean F_lambda that the mangling step and the synthetic
@@ -15,8 +16,9 @@ photometry (``true_ab``) use. Exactly one mode is required:
     Build the raw file from a compiled-photometry JSON (a list of records with keys such as
     ``MJD``, ``Telescope``, ``Instrument``, ``Filter``, ``Villar Mag``, ``Villar Mag_err``,
     ``AB/VEGA/Etc``). Magnitudes are used exactly as given, so any dust correction must be
-    removed (or not) in the JSON beforehand. Vega magnitudes are converted to AB with the
-    Vega spectrum in ``Inputs/Standards/`` (``--vega-spectrum``), so ``Mag`` is always AB.
+    removed (or not) in the JSON beforehand. Each row's magnitude system is written to a
+    ``MagSys`` column (``AB`` or ``Vega``); Vega magnitudes stay in Vega and their fluxes use
+    the Vega zero point from the spectrum in ``Inputs/Standards/`` (``--vega-spectrum``).
     ``--drop-repeated`` drops rows marked ``R`` in ``Repeated obs``; ``--villar-used-only``
     keeps only rows Villar et al. used. A per-row report of kept/dropped rows is written to
     ``Outputs/<SN>/<SN>_step0_json_rows.csv``.
@@ -115,7 +117,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--vega-spectrum",
         default=None,
-        help="--from-json: Vega spectrum used to convert Vega mags to AB "
+        help="Vega spectrum giving the zero point for MagSys=Vega rows "
         "(default: Inputs/Standards/alpha_lyr_stis_006.fits).",
     )
     p.add_argument(
@@ -155,6 +157,10 @@ def _refuse_overwrite(path: str) -> int:
     return 2
 
 
+def _vega_path(args, coco: str) -> str:
+    return args.vega_spectrum or os.path.join(coco, m2f.DEFAULT_VEGA_SPECTRUM)
+
+
 def _print_band_table(report, columns=None) -> pd.DataFrame:
     table = m2f.bands_report_table(report)
     with pd.option_context("display.max_rows", 500, "display.width", 120):
@@ -166,23 +172,23 @@ def _from_json(args, coco: str, out_path: str) -> int:
     filters_root = pconf.filters_root(coco)
     cols = m2f.JsonColumns(mag=args.mag_key, mag_err=args.mag_err_key)
     records = m2f.load_photometry_json(args.from_json, cols)
-    vega_spectrum = args.vega_spectrum or os.path.join(coco, m2f.DEFAULT_VEGA_SPECTRUM)
+    vega_spectrum = _vega_path(args, coco)
     raw, rows, bands = m2f.json_to_raw_photometry(
         records, filters_root, cols=cols, filter_set=args.filter_set,
         villar_used_only=args.villar_used_only, drop_repeated=args.drop_repeated,
         vega_spectrum=vega_spectrum,
     )
     print("JSON:", args.from_json)
-    print("%d records -> %d rows kept (%d assumed AB, %d converted from Vega), %d dropped"
-          % (len(rows), len(raw), int((rows["status"] == "kept_assumed_AB").sum()),
-             int((rows["status"] == "kept_converted_from_Vega").sum()),
+    print("%d records -> %d rows kept (%d Vega, %d assumed AB), %d dropped"
+          % (len(rows), len(raw), int((rows[m2f.MAG_SYS_COLUMN] == "Vega").sum()),
+             int((rows["status"] == "kept_assumed_AB").sum()),
              int((rows["status"] == "dropped").sum())))
     dropped = rows[rows["status"] == "dropped"]
     if len(dropped):
         print("\nDropped rows by reason:")
         print(dropped["reason"].value_counts().to_string())
     kept = rows[rows["status"] != "dropped"]
-    flagged = kept[kept["reason"].str.contains("assumed AB|case-insensitive|converted to AB")]
+    flagged = kept[kept["reason"].str.contains("assumed AB|case-insensitive|Vega magnitude")]
     if len(flagged):
         print("\nKept with warnings (check these):")
         cols_show = [cols.telescope, cols.instrument, cols.filter, "band", "reason"]
@@ -198,7 +204,7 @@ def _from_json(args, coco: str, out_path: str) -> int:
         print("\nNo rows kept; nothing written.", file=sys.stderr)
         return 1
     print()
-    _print_band_table(bands, columns=["band", "lam_piv_A", "n_rows"])
+    _print_band_table(bands, columns=["band", "MagSys", "lam_piv_A", "n_rows"])
 
     report_path = args.report or os.path.join(
         pconf.outputs_root(coco), args.snname, "%s_step0_json_rows.csv" % args.snname
@@ -225,7 +231,8 @@ def main(argv: list[str] | None = None) -> int:
 
     in_path = args.input or raw_path
     df = m2f.read_raw_photometry(in_path)
-    new_df, report = m2f.convert_raw_photometry(df, pconf.filters_root(coco))
+    new_df, report = m2f.convert_raw_photometry(df, pconf.filters_root(coco),
+                                                vega_spectrum=_vega_path(args, coco))
     print("Raw photometry:", in_path)
     print("%d rows, %d bands" % (len(df), len(report)))
     table = _print_band_table(report)
@@ -234,12 +241,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.check:
         if len(stale):
             print(
-                "\nFAIL: %d band(s) have Flux inconsistent with the AB pivot-wavelength "
+                "\nFAIL: %d band(s) have Flux inconsistent with the pivot-wavelength "
                 "conversion (max rel. change > %g): %s\nRun with --redo-fluxes to fix."
                 % (len(stale), args.rtol, ", ".join(stale["band"]))
             )
             return 1
-        print("\nOK: Flux/Flux_err match the AB pivot-wavelength conversion.")
+        print("\nOK: Flux/Flux_err match the pivot-wavelength conversion of Mag (MagSys).")
         return 0
 
     m2f.write_raw_photometry(new_df, out_path)

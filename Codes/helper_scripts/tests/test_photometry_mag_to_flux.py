@@ -138,10 +138,34 @@ class TestConvertRawPhotometry(unittest.TestCase):
         new, _ = m2f.convert_raw_photometry(self.df, self.filters_root)
         self.assertEqual(m2f.check_raw_photometry(new, self.filters_root), [])
 
-    def test_non_ab_system_rejected(self):
-        df = self.df.assign(MagSys=["AB", "Vega", "AB"])
+    def test_unknown_mag_system_rejected(self):
+        df = self.df.assign(MagSys=["AB", "Jy", "AB"])
         with self.assertRaises(ValueError):
             m2f.convert_raw_photometry(df, self.filters_root)
+
+    def test_magsys_column_optional_and_blank_is_ab(self):
+        plain, _ = m2f.convert_raw_photometry(self.df, self.filters_root)
+        tagged, _ = m2f.convert_raw_photometry(self.df.assign(MagSys=["AB", "", "ab"]), self.filters_root)
+        self.assertTrue((plain["Flux"] == tagged["Flux"]).all())
+        self.assertTrue((tagged["MagSys"] == ["AB", "", "ab"]).all())  # column passed through untouched
+
+    def test_vega_rows_use_vega_zero_point(self):
+        vw, vf = _fake_vega()
+        vpath = os.path.join(self.tmp.name, "vega.txt")
+        np.savetxt(vpath, np.column_stack([vw, vf]))
+        df = self.df.assign(MagSys=["Vega", "AB", "AB"])
+        new, report = m2f.convert_raw_photometry(df, self.filters_root, vega_spectrum=vpath)
+        fw, ft = _tophat(4000.0, 5500.0)
+        g = np.linspace(fw.min(), fw.max(), 200001)
+        t = np.interp(g, fw, ft)
+        f_vega_band = trapezoid(np.interp(g, vw, vf) * t * g, g) / trapezoid(t * g, g)
+        expected = 10 ** (-0.4 * 17.48) * f_vega_band  # <f> = 10^(-0.4 m_Vega) <f_Vega>
+        self.assertAlmostEqual(float(new.loc[0, "Flux"]) / expected, 1.0, places=4)
+        self.assertEqual(new.loc[0, "Mag"], "17.48")  # magnitude itself untouched
+        self.assertIn(("X_g", "Vega"), {(r.band, r.mag_sys) for r in report})
+        self.assertEqual(m2f.check_raw_photometry(new, self.filters_root, vega_spectrum=vpath), [])
+        with self.assertRaises(ValueError):
+            m2f.convert_raw_photometry(df, self.filters_root)  # Vega rows need a spectrum
 
     def test_missing_filter_raises(self):
         df = self.df.copy()
@@ -204,7 +228,7 @@ class TestJsonToRaw(unittest.TestCase):
             _json_record("57983.0", "Swope", "E2V4kx4kccd", "g", 18.1, "0.05", "AB "),  # telescope key
             _json_record("57983.5", "VST", "OmegaCam", "r", 18.4, "0.04"),   # case-insensitive
             _json_record("57984.0", "VISTA", "VIRCAM", "Ks", 18.9, "0.1", "-"),  # assumed AB
-            _json_record("57984.5", "LCO1m", "Sinistro", "V", 19.0, "0.1", "Vega"),  # -> AB
+            _json_record("57984.5", "LCO1m", "Sinistro", "V", 19.0, "0.1", "Vega"),  # kept as Vega
             _json_record("57985.0", "Swope", "E2V4kx4kccd", "g", "-", "-"),  # no mag
             _json_record("57985.5", "KMTNet", "-", "I", 19.2, "0.1"),        # no filter
             _json_record("57986.0", "Swope", "E2V4kx4kccd", "g", 19.5, "0.06", used="-"),
@@ -230,7 +254,8 @@ class TestJsonToRaw(unittest.TestCase):
         self.assertTrue((raw["FilterSet"] == "GeneralFilters").all())
         st = dict(zip(rows["MJD"], rows["status"]))
         self.assertEqual(st["57984.0"], "kept_assumed_AB")
-        self.assertEqual(st["57984.5"], "kept_converted_from_Vega")
+        self.assertEqual(st["57984.5"], "kept")
+        self.assertEqual(list(raw["MagSys"]), ["AB", "AB", "AB", "Vega", "AB", "AB", "AB"])
         self.assertEqual(st["57987.5"], "dropped")
         self.assertEqual(st["57985.0"], "dropped")
         self.assertEqual(st["57985.5"], "dropped")
@@ -238,7 +263,8 @@ class TestJsonToRaw(unittest.TestCase):
         self.assertEqual(int(rows["reason"].str.contains("same MJD and band").sum()), 2)
         piv = m2f.pivot_wavelength(*_tophat(4000.0, 5500.0))
         self.assertAlmostEqual(float(raw.loc[0, "Flux"]) / m2f.abmag_to_flambda(18.1, piv), 1.0, places=10)
-        self.assertEqual(m2f.check_raw_photometry(raw, self.filters_root), [])
+        self.assertEqual(m2f.check_raw_photometry(raw, self.filters_root, vega_spectrum=self.vega_path), [])
+        self.assertEqual(raw.loc[0, "MJD"], "57983")  # written like the formatting notebook (%.12g)
 
     def test_villar_used_only(self):
         recs = m2f.load_photometry_json(self.json_path)
@@ -257,7 +283,7 @@ class TestJsonToRaw(unittest.TestCase):
         r = rows.loc[rows["MJD"] == "57987.0"].iloc[0]
         self.assertEqual((r["status"], r["reason"]), ("dropped", "repeated observation (R)"))
 
-    def test_vega_converted_to_ab(self):
+    def test_vega_kept_in_vega_with_correct_flux(self):
         recs = m2f.load_photometry_json(self.json_path)
         raw, rows, _ = m2f.json_to_raw_photometry(recs, self.filters_root, vega_spectrum=self.vega_path)
         fw, ft = _tophat(4800.0, 6000.0)
@@ -265,14 +291,12 @@ class TestJsonToRaw(unittest.TestCase):
         offset = _brute_ab_minus_vega(fw, ft, vw, vf)
         self.assertGreater(abs(offset), 0.01)
         self.assertAlmostEqual(m2f.vega_to_ab_offset(fw, ft, vw, vf), offset, places=4)
-        mag_ab = float(raw.loc[raw["band"] == "Sinistro_V", "Mag"].iloc[0])
-        self.assertAlmostEqual(mag_ab, 19.0 + offset, places=4)
+        v = raw[raw["band"] == "Sinistro_V"].iloc[0]
+        self.assertEqual((v["Mag"], v["MagSys"]), ("19", "Vega"))
+        piv = m2f.pivot_wavelength(fw, ft)
+        self.assertAlmostEqual(float(v["Flux"]) / m2f.abmag_to_flambda(19.0 + offset, piv), 1.0, places=4)
         r = rows.loc[rows["MJD"] == "57984.5"].iloc[0]
-        self.assertEqual(r["input_mag"], "19.0")
-        self.assertEqual(r["input_system"], "Vega")
-        self.assertIn("converted to AB", r["reason"])
-        # Flux follows from the AB magnitude, so the file is self-consistent
-        self.assertEqual(m2f.check_raw_photometry(raw, self.filters_root), [])
+        self.assertEqual((r["input_mag"], r["input_system"], r["MagSys"]), ("19.0", "Vega", "Vega"))
 
     def test_vega_offset_zero_for_ab_reference(self):
         fw, ft = _tophat(4800.0, 6000.0)
@@ -306,6 +330,15 @@ class TestJsonToRaw(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(self._cli("--check").returncode, 0)
 
+    def test_cli_check_and_redo_handle_vega_rows(self):
+        raw_path = os.path.join(self.coco, "Inputs", "Photometry", "1_LCs_flux_raw", "TESTSN.dat")
+        self.assertEqual(self._cli("--from-json", self.json_path).returncode, 0)
+        self.assertEqual(self._cli("--check").returncode, 0)  # uses the default Vega spectrum
+        before = _read(raw_path)
+        r = self._cli("--redo-fluxes", "--overwrite")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(_read(raw_path), before)  # already consistent: nothing changes
+
     def test_cli_redo_fluxes_keeps_format(self):
         raw_path = os.path.join(self.coco, "Inputs", "Photometry", "1_LCs_flux_raw", "TESTSN.dat")
         with open(raw_path, "w") as f:
@@ -321,6 +354,21 @@ class TestJsonToRaw(unittest.TestCase):
 
     def test_cli_requires_a_mode(self):
         self.assertNotEqual(self._cli().returncode, 0)
+
+
+class TestExtraMagSysColumnIsHarmless(unittest.TestCase):
+    """Readers that ignore Mag must give identical results with or without MagSys."""
+
+    def test_band_mjd_ranges_unchanged(self):
+        import photometry_filter_utils as pfu
+
+        raw = os.path.join(REPO_ROOT, "Inputs", "Photometry", "1_LCs_flux_raw", "AT2017gfo.dat")
+        df = pd.read_csv(raw, dtype=str, keep_default_na=False)
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "with_magsys.dat")
+            df.assign(MagSys="AB").to_csv(p, index=False)
+            self.assertEqual(pfu.filter_mjd_ranges_dict_from_raw_file(raw),
+                             pfu.filter_mjd_ranges_dict_from_raw_file(p))
 
 
 class TestShippedPhotometry(unittest.TestCase):

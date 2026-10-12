@@ -13,6 +13,10 @@ wavelength, which give fluxes inconsistent with the rest of the pipeline).
 
 ``S`` is the photon-counting throughput in ``Inputs/Filters/<FilterSet>/<band>.dat``; the
 overall normalization of the curve (fraction vs percent) does not matter.
+
+Rows may carry a ``MagSys`` column (``AB`` default, or ``Vega``). Vega magnitudes are kept
+as Vega; their flux uses the Vega zero point, ``<f_lam> = 10**(-0.4 m_Vega) <f_lam^Vega>``,
+which equals the AB pivot formula applied to ``m_Vega + (m_AB - m_Vega)_band``.
 """
 
 from __future__ import annotations
@@ -28,7 +32,7 @@ from scipy import integrate
 C_AA_PER_S = 2.99792458e18
 AB_FNU_CGS = 3631e-23  # AB zero point: f_nu = 3631 Jy (m_AB = -2.5 log10 f_nu - 48.5999)
 FLUX_FLOAT_FORMAT = "%.12g"
-MAG_SYSTEM_COLUMNS = ("MagSys", "mag_sys", "system")
+MAG_SYS_COLUMN = "MagSys"  # optional raw-file column: "AB" (default) or "Vega"
 
 __all__ = [
     "pivot_wavelength",
@@ -42,6 +46,8 @@ __all__ = [
     "read_raw_photometry",
     "write_raw_photometry",
     "bands_report_table",
+    "magnitude_systems",
+    "MAG_SYS_COLUMN",
     "JsonColumns",
     "load_photometry_json",
     "json_to_raw_photometry",
@@ -51,7 +57,7 @@ __all__ = [
     "vega_to_ab_offset",
 ]
 
-RAW_COLUMNS = ["MJD", "Mag", "Mag_err", "Flux", "Flux_err", "band", "Instr", "FilterSet"]
+RAW_COLUMNS = ["MJD", "Mag", "Mag_err", "Flux", "Flux_err", "band", "Instr", "FilterSet", "MagSys"]
 
 
 def pivot_wavelength(filt_w: np.ndarray, filt_t: np.ndarray) -> float:
@@ -101,6 +107,8 @@ class BandConversion:
     n_rows: int
     max_rel_change: float  # max |Flux_new / Flux_old - 1| over the band's rows
     median_dmag_old_minus_new: float  # -2.5 log10(Flux_old / Flux_new)
+    mag_sys: str = "AB"
+    ab_minus_vega: float = float("nan")  # only for Vega rows
 
 
 def read_raw_photometry(path: str) -> pd.DataFrame:
@@ -116,15 +124,19 @@ def write_raw_photometry(df: pd.DataFrame, path: str) -> None:
     df.to_csv(path, index=False)
 
 
-def _check_ab_only(df: pd.DataFrame) -> None:
-    for col in MAG_SYSTEM_COLUMNS:
-        if col in df.columns:
-            sys_vals = {s.strip().upper() for s in df[col] if s.strip()}
-            if sys_vals - {"AB"}:
-                raise ValueError(
-                    "Column %r contains non-AB magnitude systems %s; only AB is supported."
-                    % (col, sorted(sys_vals - {"AB"}))
-                )
+def magnitude_systems(df: pd.DataFrame) -> pd.Series:
+    """Normalized magnitude system per row: ``"AB"`` or ``"Vega"`` (missing column/empty -> AB)."""
+    if MAG_SYS_COLUMN not in df.columns:
+        return pd.Series(["AB"] * len(df), index=df.index)
+    raw = df[MAG_SYS_COLUMN].astype(str).str.strip()
+    norm = raw.str.upper().map({"": "AB", "AB": "AB", "VEGA": "Vega"})
+    bad = sorted(set(raw[norm.isna()]))
+    if bad:
+        raise ValueError(
+            "Column %r contains unsupported magnitude systems %s (use AB or Vega)."
+            % (MAG_SYS_COLUMN, bad)
+        )
+    return norm
 
 
 def _to_float(series: pd.Series) -> np.ndarray:
@@ -136,13 +148,19 @@ def convert_raw_photometry(
     filters_root: str,
     *,
     default_filter_set: str = "GeneralFilters",
+    vega_spectrum: str | None = None,
 ) -> tuple[pd.DataFrame, list[BandConversion]]:
-    """Recompute ``Flux``/``Flux_err`` from ``Mag``/``Mag_err`` at each band's pivot wavelength.
+    """Recompute ``Flux``/``Flux_err`` from ``Mag``/``Mag_err`` (band-mean F_lambda).
+
+    ``MagSys`` (optional column, ``AB`` or ``Vega``; default AB) sets the zero point:
+    AB rows use the pivot-wavelength identity, Vega rows use
+    ``<f_lam> = 10**(-0.4 m_Vega) <f_lam^Vega>``, i.e. the pivot identity applied to
+    ``m_Vega + (m_AB - m_Vega)_band`` (:func:`vega_to_ab_offset`; needs ``vega_spectrum``).
 
     All other columns are left byte-for-byte unchanged. Rows with a missing ``Mag`` keep
     their existing ``Flux``/``Flux_err``. Returns ``(new_df, per_band_report)``.
     """
-    _check_ab_only(df)
+    systems = magnitude_systems(df)
     out = df.copy()
     mag = _to_float(df["Mag"])
     mag_err = _to_float(df["Mag_err"])
@@ -150,18 +168,27 @@ def convert_raw_photometry(
     fsets = df["FilterSet"] if "FilterSet" in df.columns else pd.Series(
         [default_filter_set] * len(df), index=df.index
     )
+    vega = None
 
     report: list[BandConversion] = []
     new_flux = flux_old.copy()
     new_err = _to_float(df["Flux_err"])
-    for (band, fset), idx in df.groupby([df["band"], fsets.replace("", default_filter_set)]).groups.items():
+    groups = df.groupby([df["band"], fsets.replace("", default_filter_set), systems]).groups
+    for (band, fset, msys), idx in groups.items():
         pos = df.index.get_indexer(idx)
         path = resolve_band_filter_path(band, fset, filters_root)
         d = np.loadtxt(path, usecols=(0, 1), dtype=float)
         lam_piv = pivot_wavelength(d[:, 0], d[:, 1])
+        offset = 0.0
+        if msys == "Vega":
+            if vega_spectrum is None:
+                raise ValueError("Vega magnitudes present (band %s) but no vega_spectrum given" % band)
+            if vega is None:
+                vega = load_vega_spectrum(vega_spectrum)
+            offset = vega_to_ab_offset(d[:, 0], d[:, 1], *vega)
         ok = np.isfinite(mag[pos])
         p_ok = pos[ok]
-        new_flux[p_ok] = abmag_to_flambda(mag[p_ok], lam_piv)
+        new_flux[p_ok] = abmag_to_flambda(mag[p_ok] + offset, lam_piv)
         new_err[p_ok] = abmag_err_to_flambda_err(new_flux[p_ok], mag_err[p_ok])
         with np.errstate(divide="ignore", invalid="ignore"):
             ratio = flux_old[p_ok] / new_flux[p_ok]
@@ -175,6 +202,8 @@ def convert_raw_photometry(
                 max_rel_change=float(np.max(np.abs(ratio[fin] - 1.0))) if fin.any() else float("nan"),
                 median_dmag_old_minus_new=float(np.median(-2.5 * np.log10(ratio[fin])))
                 if fin.any() else float("nan"),
+                mag_sys=msys,
+                ab_minus_vega=offset if msys == "Vega" else float("nan"),
             )
         )
 
@@ -194,9 +223,11 @@ def check_raw_photometry(
     *,
     rtol: float = 1e-6,
     default_filter_set: str = "GeneralFilters",
+    vega_spectrum: str | None = None,
 ) -> list[BandConversion]:
-    """Bands whose existing ``Flux`` deviates from the pivot-wavelength AB conversion by > ``rtol``."""
-    _, report = convert_raw_photometry(df, filters_root, default_filter_set=default_filter_set)
+    """Band/system groups whose existing ``Flux`` deviates from the conversion by > ``rtol``."""
+    _, report = convert_raw_photometry(df, filters_root, default_filter_set=default_filter_set,
+                                       vega_spectrum=vega_spectrum)
     return [r for r in report if not (r.max_rel_change <= rtol)]
 
 
@@ -205,6 +236,7 @@ def bands_report_table(report: Iterable[BandConversion]) -> pd.DataFrame:
         [
             {
                 "band": r.band,
+                "MagSys": r.mag_sys,
                 "lam_piv_A": round(r.lam_piv, 1),
                 "n_rows": r.n_rows,
                 "dmag_old_minus_new": round(r.median_dmag_old_minus_new, 4),
@@ -341,19 +373,16 @@ def json_to_raw_photometry(
     Magnitudes are taken as given (any dust/extinction handling must already be reflected
     in the JSON). A row is kept when it has a numeric MJD, magnitude and magnitude error,
     an AB, Vega, or unspecified (assumed AB) magnitude system, and a matching filter curve.
-    Vega magnitudes are converted to AB with :func:`vega_to_ab_offset` using the
-    ``vega_spectrum`` file (required if any kept row is Vega), so the ``Mag`` column is
-    always AB. ``drop_repeated`` drops rows marked ``R`` in ``Repeated obs``;
-    ``villar_used_only`` keeps only rows marked ``*`` in ``Used in Villar model?``.
-    Fluxes are computed at the filter pivot wavelength (:func:`convert_raw_photometry`).
+    Magnitudes are written unchanged with their system in ``MagSys`` (``AB``/``Vega``);
+    fluxes come from :func:`convert_raw_photometry` (Vega rows need ``vega_spectrum``).
+    ``drop_repeated`` drops rows marked ``R`` in ``Repeated obs``; ``villar_used_only``
+    keeps only rows marked ``*`` in ``Used in Villar model?``.
 
     Returns ``(raw_df, rows_report, band_report)``. ``rows_report`` has one line per JSON
-    row with ``status`` (``kept`` / ``kept_assumed_AB`` / ``kept_converted_from_Vega`` /
-    ``dropped``), ``reason``, the input magnitude/system and the AB magnitude written.
+    row with ``status`` (``kept`` / ``kept_assumed_AB`` / ``dropped``), ``reason``, the
+    input magnitude and the ``MagSys`` written.
     """
     exact, lower = _filter_index(filters_root, filter_set)
-    vega = None
-    vega_offsets: dict[str, float] = {}
     out_rows, report = [], []
     for i, row in df_json.iterrows():
         mag_s, err_s = row[cols.mag], row[cols.mag_err]
@@ -363,7 +392,7 @@ def json_to_raw_photometry(
         system = row.get(cols.system, "").upper()
         band, how = _match_band(row, cols, exact, lower)
         status, reason = "kept", ""
-        mag_ab = mag
+        mag_sys = "Vega" if system == "VEGA" else "AB"
         if villar_used_only and row.get(cols.used, "") != "*":
             status, reason = "dropped", "not used in Villar model"
         elif drop_repeated and row.get(cols.repeated, "").upper() == "R":
@@ -377,17 +406,7 @@ def json_to_raw_photometry(
         elif band is None:
             status, reason = "dropped", "no filter curve (tried %s)" % how
         elif system == "VEGA":
-            if vega_spectrum is None:
-                raise ValueError("Vega magnitudes present but no vega_spectrum file given")
-            if band not in vega_offsets:
-                if vega is None:
-                    vega = load_vega_spectrum(vega_spectrum)
-                d = np.loadtxt(resolve_band_filter_path(band, filter_set, filters_root),
-                               usecols=(0, 1), dtype=float)
-                vega_offsets[band] = vega_to_ab_offset(d[:, 0], d[:, 1], *vega)
-            mag_ab = mag + vega_offsets[band]
-            status = "kept_converted_from_Vega"
-            reason = "Vega mag converted to AB (m_AB - m_Vega = %+.4f)" % vega_offsets[band]
+            reason = "Vega magnitude (kept in Vega; flux from the Vega zero point)"
         elif system.lower() in _MISSING:
             status, reason = "kept_assumed_AB", "no magnitude system given; assumed AB"
         if status != "dropped" and how.endswith("(case-insensitive)"):
@@ -397,23 +416,21 @@ def json_to_raw_photometry(
             cols.instrument: row.get(cols.instrument, ""), cols.filter: row[cols.filter],
             cols.reference: row.get(cols.reference, ""), "input_mag": mag_s,
             "input_system": row.get(cols.system, ""),
-            "Mag_AB": (FLUX_FLOAT_FORMAT % mag_ab) if status != "dropped" else "",
+            MAG_SYS_COLUMN: mag_sys if status != "dropped" else "",
             "band": band or "", "status": status, "reason": reason,
         })
         if status == "dropped":
             continue
-        instr = row.get(cols.instrument, "")
-        if instr.lower() in _MISSING:
-            instr = row.get(cols.telescope, "")
         out_rows.append({
-            "MJD": row[cols.mjd],
-            "Mag": FLUX_FLOAT_FORMAT % mag_ab,
+            "MJD": FLUX_FLOAT_FORMAT % mjd,
+            "Mag": FLUX_FLOAT_FORMAT % mag,
             "Mag_err": FLUX_FLOAT_FORMAT % err,
             "Flux": "",
             "Flux_err": "",
             "band": band,
-            "Instr": instr,
+            "Instr": row.get(cols.instrument, ""),
             "FilterSet": filter_set,
+            MAG_SYS_COLUMN: mag_sys,
         })
     raw = pd.DataFrame(out_rows, columns=RAW_COLUMNS)
     rows_report = pd.DataFrame(report)
@@ -428,5 +445,6 @@ def json_to_raw_photometry(
         ]
     if raw.empty:
         return raw, rows_report, []
-    raw, band_report = convert_raw_photometry(raw, filters_root, default_filter_set=filter_set)
+    raw, band_report = convert_raw_photometry(raw, filters_root, default_filter_set=filter_set,
+                                              vega_spectrum=vega_spectrum)
     return raw, rows_report, band_report
