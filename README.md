@@ -95,8 +95,10 @@ MJD,Mag,Mag_err,Flux,Flux_err,band,Instr,FilterSet
 
 **Compiled-photometry JSON (recommended source).** A list of records, one per observation, with at least `MJD`, `Telescope`, `Instrument`, `Filter`, `Villar Mag`, `Villar Mag_err`, and `AB/VEGA/Etc` (the `KN_SED_Data*.json` layout; other magnitude keys via `--mag-key`/`--mag-err-key`). Magnitudes are used **exactly as given**: whether Galactic/host extinction has been removed from them must be decided in the JSON *before* step 0 (the pipeline expects **un-dereddened** magnitudes, because notebook 1 applies the dust correction). Step 0 then:
 
-- maps each row to a filter curve `<Instrument>_<Filter>`, else `<Telescope>_<Filter>` (exact match first, then case-insensitive, e.g. `OmegaCam_g` → `OmegaCAM_g.dat`);
-- drops rows without a numeric MJD/magnitude/error, upper limits, non-AB systems (e.g. `Vega`), and rows with no matching filter curve — add the missing curve to `Inputs/Filters/GeneralFilters/` to keep them;
+- maps each row to a filter curve `<Instrument>_<Filter>`, else `<Telescope>_<Filter>` (exact match first, then case-insensitive, e.g. `omegacam_g` → `OmegaCam_g.dat`);
+- converts **Vega** magnitudes to AB with the filter's photon-weighted AB−Vega offset, computed from the Vega spectrum `Inputs/Standards/alpha_lyr_stis_006.fits` (CALSPEC; Vega = 0 mag in every band; override with `--vega-spectrum`), so the `Mag` column is always AB;
+- drops rows without a numeric MJD/magnitude/error, upper limits, other magnitude systems, and rows with no matching filter curve — add the missing curve to `Inputs/Filters/GeneralFilters/` to keep them;
+- with `--drop-repeated`, drops rows marked `R` in `Repeated obs` (the same measurement copied from another paper) and keeps everything else; with `--villar-used-only`, keeps only rows marked `*` in `Used in Villar model?`;
 - keeps rows with no magnitude system (`-`) as AB, and rows that repeat an MJD+band (the same epoch from several papers), but **flags** both;
 - skips a repeated CSV header record if the JSON has one;
 - writes the per-row decisions to `Outputs/<SN>/<SN>_step0_json_rows.csv` and prints a summary.
@@ -107,7 +109,7 @@ The pipeline compares data and model as **band-integrated** quantities. The mang
 
 $$\langle f_\lambda\rangle = 3631\,\mathrm{Jy}\times 10^{-0.4\,m_{AB}}\,\frac{c}{\lambda_{\rm piv}^2},\qquad \lambda_{\rm piv}=\sqrt{\frac{\int S\lambda\,d\lambda}{\int S/\lambda\,d\lambda}}$$
 
-with $\sigma_F = F\cdot 0.4\ln 10\cdot\sigma_m$. Step 0 applies exactly this at each filter's **pivot** wavelength. Do **not** convert at an "effective", mean, or median wavelength — those give fluxes inconsistent with the rest of the pipeline (an earlier version of the AT2017gfo input used a blue-shifted wavelength and was 0.07–0.6 mag too bright; see issue #3). Only AB magnitudes are supported; a `MagSys` column with non-AB values is rejected.
+with $\sigma_F = F\cdot 0.4\ln 10\cdot\sigma_m$. Step 0 applies exactly this at each filter's **pivot** wavelength. Do **not** convert at an "effective", mean, or median wavelength — those give fluxes inconsistent with the rest of the pipeline (an earlier version of the AT2017gfo input used a blue-shifted wavelength and was 0.07–0.6 mag too bright; see issue #3). Vega magnitudes in the JSON are converted to AB first (the same photon-weighted band means give an exact, SED-independent offset, $m_{AB}-m_{\rm Vega}=-2.5\log_{10}\langle f^{\rm Vega}_\lambda\rangle/\langle f^{AB}_\lambda\rangle$); the raw `.dat` file itself is always AB, and a `MagSys` column with non-AB values is rejected there.
 
 Step 0 has three modes (exactly one is required):
 
@@ -123,7 +125,7 @@ python 0_Mag_to_Flux_KN.py --snname AT2017gfo --check
 
 > **⚠️ Back up before writing.** `--from-json` and `--redo-fluxes` write `Inputs/Photometry/1_LCs_flux_raw/<SN>.dat` by default. If that file already exists the script **refuses to run** unless you pass `--overwrite`. **Rename the old file first** (e.g. `mv AT2017gfo.dat AT2017gfo_old.dat`) so nothing is lost, or write elsewhere with `--output`.
 
-Run step 0 whenever the photometry or any filter curve changes, and `--check` it before every run. Use `--input` to check or redo a raw file at another path, and `--villar-used-only` to keep only JSON rows marked as used by Villar et al.
+Run step 0 whenever the photometry or any filter curve changes, and `--check` it before every run. Use `--input` to check or redo a raw file at another path. For JSON input, `--drop-repeated` removes only rows flagged as repeated observations (`R`), while `--villar-used-only` keeps only the rows Villar et al. used (which also drops rows excluded for other reasons).
 
 **If your photometry is already dust-corrected and already extended at early and late times** (or you do not want those steps), you may skip notebooks 1 and 2 and place the finished light curve directly in `Inputs/Photometry/3_LCs_extrapolated/<SN>.dat`. Its fluxes must follow the same pivot-wavelength AB convention as step 0. You still need a raw file under `1_LCs_flux_raw/` so that step 5 can build per-band Modified Julian Date validity windows when they are missing.
 

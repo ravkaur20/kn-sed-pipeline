@@ -87,7 +87,11 @@ F = 3631\,\mathrm{Jy}\times 10^{-0.4\,m_{AB}}\,\frac{c}{\lambda_{\mathrm{piv}}^{
 $$
 into the `Flux`/`Flux_err` columns of `Inputs/Photometry/1_LCs_flux_raw/<SN>.dat`. The pivot wavelength depends only on the filter. By contrast, the effective wavelength $\lambda_{\mathrm{eff}} = \int \lambda f_\lambda S\lambda\,d\lambda / \int f_\lambda S\lambda\,d\lambda$ depends on the SED, and converting at any other wavelength $\lambda_x$ biases the flux by $5\log_{10}(\lambda_{\mathrm{piv}}/\lambda_x)$ mag. With this convention, comparisons between model and data in magnitude space (synthetic $m_{AB}$ versus catalog $m_{AB}$) and in flux space ($\langle f_\lambda\rangle$ versus `Flux`) are equivalent. The colour of the SED within each band is handled exactly by the band integrals, so no colour-dependent conversion is needed as long as every comparison is band-integrated.
 
-Step 0 builds the raw photometry table either from a compiled-photometry JSON (one record per published magnitude, with telescope, instrument, filter, magnitude system, and reference) or by recomputing the fluxes of an existing table. Magnitudes are used as given; they must not yet be corrected for extinction, which notebook 1 applies (§3). Only AB magnitudes are converted; rows in other systems or without a filter curve are excluded and reported.
+Step 0 builds the raw photometry table either from a compiled-photometry JSON (one record per published magnitude, with telescope, instrument, filter, magnitude system, and reference) or by recomputing the fluxes of an existing table. Magnitudes are used as given; they must not yet be corrected for extinction, which notebook 1 applies (§3). Vega magnitudes are first converted to AB. With $f^{\rm Vega}_\lambda$ the CALSPEC spectrum of Vega (`Inputs/Standards/alpha_lyr_stis_006.fits`) and Vega defined as 0 mag in every band,
+$$
+m_{AB} = m_{\mathrm{Vega}} - 2.5\log_{10}\frac{\int f^{\mathrm{Vega}}_\lambda\, S\,\lambda\, d\lambda}{\int f^{AB}_\lambda\, S\,\lambda\, d\lambda},
+$$
+which, like the pivot identity, does not depend on the source SED. Rows in other systems or without a filter curve are excluded and reported. Optionally, rows flagged as repeated observations in the compilation are dropped (`--drop-repeated`), or only the rows used by Villar et al. (2017) are kept (`--villar-used-only`).
 
 Earlier AT2017gfo inputs converted at a blue-shifted "effective wavelength" (a double cumulative integral placed $\lambda_x$ near the blue edge of each filter), making `Flux` 0.07--0.6 mag too bright depending on band. Step 0 replaces that conversion; its `--check` mode verifies an input file without modifying it.
 
@@ -536,6 +540,7 @@ Inputs/
   Spectroscopy/{1,2}_spec_*/           original / smoothed / prescaled
   Filters/GeneralFilters/              throughput curves
   SNe_Info/info.dat                    coordinates / types
+  Standards/alpha_lyr_stis_006.fits    Vega spectrum (step 0 Vega -> AB)
   2DIM_priors/                         optional 2D priors
 Outputs/<SN>/
   fitted_phot*.dat                     step 3
@@ -550,6 +555,8 @@ docs/
 # Appendix B: References
 
 - Vincenzi et al. 2019, PyCoCo templates: https://arxiv.org/abs/1908.05228
+- Villar et al. 2017, AT2017gfo photometry compilation: https://ui.adsabs.harvard.edu/abs/2017ApJ...851L..21V
+- Bohlin 2014 / CALSPEC, Vega (alpha Lyr) STIS spectrum: https://www.stsci.edu/hst/instrumentation/reference-data-for-calibration-and-tools/astronomical-catalogs/calspec
 - Oke & Gunn 1983, AB magnitude system: https://ui.adsabs.harvard.edu/abs/1983ApJ...266..713O
 - Fukugita et al. 1996, SDSS photometric system: https://ui.adsabs.harvard.edu/abs/1996AJ....111.1748F
 - Tokunaga & Vacca 2005, photometric quantities (pivot / effective wavelength): https://ui.adsabs.harvard.edu/abs/2005PASP..117..421T

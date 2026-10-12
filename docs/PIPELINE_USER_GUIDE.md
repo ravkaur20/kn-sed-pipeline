@@ -58,6 +58,7 @@ Production scripts already force the Agg backend where they create figures. Sett
 | `Inputs/Spectroscopy/` | Original, smoothed, and prescaled spectra plus list files |
 | `Inputs/Filters/` | Filter throughput tables (`GeneralFilters/` and variants) |
 | `Inputs/SNe_Info/` | Metadata table (`info.dat`) used by dust correction |
+| `Inputs/Standards/` | Vega reference spectrum (`alpha_lyr_stis_006.fits`, CALSPEC) used by step 0 to convert Vega magnitudes to AB |
 | `Inputs/2DIM_priors/` | Optional surface priors for the two-dimensional Gaussian Process |
 | `Outputs/<SN>/` | All pipeline products for one supernova or kilonova name |
 | `docs/` | This user guide, the scientific writeup, and PDF build scripts |
@@ -190,11 +191,18 @@ Legacy checkouts may still have `4_LCs_late_extrapolated/`. The configuration mo
 | `MJD` | Copied to `MJD` (must be numeric) |
 | `Telescope`, `Instrument`, `Filter` | Matched to a filter curve: `<Instrument>_<Filter>`, else `<Telescope>_<Filter>`; exact, then case-insensitive. `band` is the matched file name; `Instr` is `Instrument` (or `Telescope` if `Instrument` is `-`) |
 | `Villar Mag`, `Villar Mag_err` | Copied to `Mag`, `Mag_err` exactly as given (override the keys with `--mag-key`, `--mag-err-key`) |
-| `AB/VEGA/Etc` | `AB` kept; `-`/empty kept **as AB with a warning**; anything else (e.g. `Vega`) dropped |
+| `AB/VEGA/Etc` | `AB` kept; `Vega` **converted to AB** (below); `-`/empty kept **as AB with a warning**; anything else dropped |
 | `Used in Villar model?` | Only with `--villar-used-only`: keep rows marked `*` |
+| `Repeated obs` | Only with `--drop-repeated`: drop rows marked `R` (repeated observation), keep everything else |
 | `Refrence` | Copied to the row report |
 
-Magnitudes must **not** be dust-corrected (notebook 1 applies the extinction correction), so any published dereddening has to be undone in the JSON before step 0; step 0 cannot tell from the JSON whether that was done. Rows are dropped when MJD, magnitude, or error is non-numeric, the magnitude is a limit (`>`/`<`), the system is not AB, or no filter curve matches (add the curve under `Inputs/Filters/GeneralFilters/` to keep them). Rows that repeat an MJD and band (the same epoch from several papers) are kept but flagged. A repeated CSV header record is skipped. Every decision is written to `Outputs/<SN>/<SN>_step0_json_rows.csv` (`status` = `kept` / `kept_assumed_AB` / `dropped`, plus `reason`).
+Magnitudes must **not** be dust-corrected (notebook 1 applies the extinction correction), so any published dereddening has to be undone in the JSON before step 0; step 0 cannot tell from the JSON whether that was done. Rows are dropped when MJD, magnitude, or error is non-numeric, the magnitude is a limit (`>`/`<`), the system is neither AB nor Vega, or no filter curve matches (add the curve under `Inputs/Filters/GeneralFilters/` to keep them).
+
+**Vega magnitudes.** A Vega magnitude is defined like an AB magnitude but relative to the spectrum of Vega (Vega = 0 mag in every band). Because both use the same photon-weighted band mean, each filter has an exact, SED-independent offset
+$$m_{AB} = m_{\rm Vega} - 2.5\log_{10}\frac{\int f^{\rm Vega}_\lambda S\lambda\,d\lambda}{\int f^{AB}_\lambda S\lambda\,d\lambda},$$
+computed from `Inputs/Standards/alpha_lyr_stis_006.fits` (override with `--vega-spectrum`). Step 0 writes the converted AB magnitude to `Mag` and records the original magnitude, system, and offset in the row report (`input_mag`, `input_system`, `Mag_AB`, `reason`). Typical offsets: about $-0.01$ in $V$, $-0.10$ in $B$, $+0.4$ in $i$, $+0.92$ in $J$, $+1.83$ in $K_s$.
+
+**Repeated observations.** The compilation often lists the same measurement from several papers; Villar et al. mark the copies with `R` in `Repeated obs` and use one of them (often their own averaged value, `A`). `--drop-repeated` removes the `R` rows only, so rows Villar excluded for other reasons stay in; `--villar-used-only` applies Villar's full selection instead. Rows that repeat an MJD and band (the same epoch from several papers) are kept but flagged. A repeated CSV header record is skipped. Every decision is written to `Outputs/<SN>/<SN>_step0_json_rows.csv` (`status` = `kept` / `kept_assumed_AB` / `kept_converted_from_Vega` / `dropped`, plus `reason`).
 
 **Flux convention.** Every `Flux` in the pipeline is the photon-weighted band-mean $F_\lambda$ in erg s$^{-1}$ cm$^{-2}$ Å$^{-1}$,
 $$\langle f_\lambda\rangle=\frac{\int f_\lambda S\lambda\,d\lambda}{\int S\lambda\,d\lambda}
@@ -351,11 +359,13 @@ The conversion is $F = 3631\,\mathrm{Jy}\times 10^{-0.4\,\mathrm{Mag}}\, c/\lamb
 | `--overwrite` | off | Allow replacing an existing output file. **Rename the old file first** |
 | `--filter-set` | `GeneralFilters` | Filter folder under `Inputs/Filters/` for `--from-json` |
 | `--villar-used-only` | off | `--from-json`: keep only rows marked `*` in `Used in Villar model?` |
+| `--drop-repeated` | off | `--from-json`: drop rows marked `R` in `Repeated obs`; keep everything else |
+| `--vega-spectrum` | `Inputs/Standards/alpha_lyr_stis_006.fits` | `--from-json`: Vega spectrum used to convert Vega magnitudes to AB |
 | `--mag-key`, `--mag-err-key` | `Villar Mag`, `Villar Mag_err` | `--from-json`: JSON keys holding the AB magnitude and its error |
 | `--report` | `Outputs/<SN>/<SN>_step0_json_rows.csv` | `--from-json`: per-row report path |
 | `--rtol` | `1e-6` | Relative tolerance for `--check` |
 
-**Output.** `--from-json` prints how many records were kept/dropped (with reasons), the rows kept with warnings (assumed AB, case-insensitive filter match), a warning if epochs are repeated, and the pivot wavelength and row count per band; it writes the raw file and the row report. `--redo-fluxes` / `--check` print a per-band table (pivot wavelength, number of rows, median `-2.5 log10(Flux_old/Flux_new)`, maximum relative change) followed by the path written or `OK`/`FAIL`.
+**Output.** `--from-json` prints how many records were kept/dropped (with reasons), the rows kept with warnings (assumed AB, converted from Vega with the offset used, case-insensitive filter match), a warning if epochs are repeated, and the pivot wavelength and row count per band; it writes the raw file and the row report. `--redo-fluxes` / `--check` print a per-band table (pivot wavelength, number of rows, median `-2.5 log10(Flux_old/Flux_new)`, maximum relative change) followed by the path written or `OK`/`FAIL`.
 
 > **Back up before writing.** `--from-json` and `--redo-fluxes` write `Inputs/Photometry/1_LCs_flux_raw/<SN>.dat` by default. If that file already exists the script **refuses to run** unless you pass `--overwrite`. **Rename the old file first** (e.g. `mv AT2017gfo.dat AT2017gfo_old.dat`) so nothing is lost, or write elsewhere with `--output`.
 
