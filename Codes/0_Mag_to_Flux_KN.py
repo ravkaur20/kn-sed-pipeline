@@ -15,8 +15,11 @@ photometry (``true_ab``) use. Exactly one mode is required:
     Build the raw file from a compiled-photometry JSON (a list of records with keys such as
     ``MJD``, ``Telescope``, ``Instrument``, ``Filter``, ``Villar Mag``, ``Villar Mag_err``,
     ``AB/VEGA/Etc``). Magnitudes are used exactly as given, so any dust correction must be
-    removed (or not) in the JSON beforehand. A per-row report of kept/dropped rows is
-    written to ``Outputs/<SN>/<SN>_step0_json_rows.csv``.
+    removed (or not) in the JSON beforehand. Vega magnitudes are converted to AB with the
+    Vega spectrum in ``Inputs/Standards/`` (``--vega-spectrum``), so ``Mag`` is always AB.
+    ``--drop-repeated`` drops rows marked ``R`` in ``Repeated obs``; ``--villar-used-only``
+    keeps only rows Villar et al. used. A per-row report of kept/dropped rows is written to
+    ``Outputs/<SN>/<SN>_step0_json_rows.csv``.
 ``--redo-fluxes``
     Keep an existing raw-format file as is and recompute only its ``Flux``/``Flux_err``
     columns from ``Mag``/``Mag_err``.
@@ -105,6 +108,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help="--from-json: keep only rows marked '*' in 'Used in Villar model?'.",
     )
     p.add_argument(
+        "--drop-repeated",
+        action="store_true",
+        help="--from-json: drop rows marked 'R' in 'Repeated obs' (keeps everything else).",
+    )
+    p.add_argument(
+        "--vega-spectrum",
+        default=None,
+        help="--from-json: Vega spectrum used to convert Vega mags to AB "
+        "(default: Inputs/Standards/alpha_lyr_stis_006.fits).",
+    )
+    p.add_argument(
         "--mag-key",
         default=m2f.JsonColumns.mag,
         help="--from-json: JSON key holding the AB magnitude (default: %(default)r).",
@@ -152,20 +166,23 @@ def _from_json(args, coco: str, out_path: str) -> int:
     filters_root = pconf.filters_root(coco)
     cols = m2f.JsonColumns(mag=args.mag_key, mag_err=args.mag_err_key)
     records = m2f.load_photometry_json(args.from_json, cols)
+    vega_spectrum = args.vega_spectrum or os.path.join(coco, m2f.DEFAULT_VEGA_SPECTRUM)
     raw, rows, bands = m2f.json_to_raw_photometry(
         records, filters_root, cols=cols, filter_set=args.filter_set,
-        villar_used_only=args.villar_used_only,
+        villar_used_only=args.villar_used_only, drop_repeated=args.drop_repeated,
+        vega_spectrum=vega_spectrum,
     )
     print("JSON:", args.from_json)
-    print("%d records -> %d rows kept (%d assumed AB), %d dropped"
+    print("%d records -> %d rows kept (%d assumed AB, %d converted from Vega), %d dropped"
           % (len(rows), len(raw), int((rows["status"] == "kept_assumed_AB").sum()),
+             int((rows["status"] == "kept_converted_from_Vega").sum()),
              int((rows["status"] == "dropped").sum())))
     dropped = rows[rows["status"] == "dropped"]
     if len(dropped):
         print("\nDropped rows by reason:")
         print(dropped["reason"].value_counts().to_string())
     kept = rows[rows["status"] != "dropped"]
-    flagged = kept[kept["reason"].str.contains("assumed AB|case-insensitive")]
+    flagged = kept[kept["reason"].str.contains("assumed AB|case-insensitive|converted to AB")]
     if len(flagged):
         print("\nKept with warnings (check these):")
         cols_show = [cols.telescope, cols.instrument, cols.filter, "band", "reason"]

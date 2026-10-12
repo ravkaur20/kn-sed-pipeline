@@ -46,6 +46,9 @@ __all__ = [
     "load_photometry_json",
     "json_to_raw_photometry",
     "RAW_COLUMNS",
+    "DEFAULT_VEGA_SPECTRUM",
+    "load_vega_spectrum",
+    "vega_to_ab_offset",
 ]
 
 RAW_COLUMNS = ["MJD", "Mag", "Mag_err", "Flux", "Flux_err", "band", "Instr", "FilterSet"]
@@ -229,10 +232,54 @@ class JsonColumns:
     mag_err: str = "Villar Mag_err"
     system: str = "AB/VEGA/Etc"
     used: str = "Used in Villar model?"
+    repeated: str = "Repeated obs"
     reference: str = "Refrence"
 
 
 _MISSING = {"", "-", "nan", "none"}
+
+DEFAULT_VEGA_SPECTRUM = os.path.join("Inputs", "Standards", "alpha_lyr_stis_006.fits")
+
+
+def load_vega_spectrum(path: str) -> tuple[np.ndarray, np.ndarray]:
+    """CALSPEC Vega spectrum (FITS table WAVELENGTH [A], FLUX [erg/s/cm2/A]) or 2-column text."""
+    if path.lower().endswith((".fits", ".fit", ".fits.gz")):
+        from astropy.io import fits
+
+        with fits.open(path) as h:
+            d = h[1].data
+            w = np.asarray(d["WAVELENGTH"], dtype=float)
+            f = np.asarray(d["FLUX"], dtype=float)
+    else:
+        d = np.loadtxt(path, usecols=(0, 1), dtype=float)
+        w, f = d[:, 0], d[:, 1]
+    order = np.argsort(w)
+    return w[order], f[order]
+
+
+def vega_to_ab_offset(
+    filt_w: np.ndarray, filt_t: np.ndarray, vega_w: np.ndarray, vega_f: np.ndarray
+) -> float:
+    """``m_AB - m_Vega`` for one filter (photon counting, Vega = 0 mag in every band).
+
+    Both systems are defined by the same photon-weighted band mean, so for any source
+    ``m_AB = m_Vega - 2.5 log10( <f_Vega> / <f_AB> )`` with
+    ``<f> = int f S lam dlam / int S lam dlam``; this offset is independent of the SED.
+    """
+    w = np.asarray(filt_w, dtype=float)
+    t = np.clip(np.asarray(filt_t, dtype=float), 0.0, None)
+    order = np.argsort(w)
+    w, t = w[order], t[order]
+    if w[0] < vega_w[0] or w[-1] > vega_w[-1]:
+        raise ValueError("Vega spectrum does not cover the filter (%.0f-%.0f A)" % (w[0], w[-1]))
+    # integrate on the union of both grids so Vega's lines are resolved
+    grid = np.union1d(w, vega_w[(vega_w > w[0]) & (vega_w < w[-1])])
+    tg = np.interp(grid, w, t)
+    fv = np.interp(grid, vega_w, vega_f)
+    f_ab = AB_FNU_CGS * C_AA_PER_S / grid**2
+    return float(-2.5 * np.log10(
+        integrate.trapezoid(fv * tg * grid, grid) / integrate.trapezoid(f_ab * tg * grid, grid)
+    ))
 
 
 def load_photometry_json(path: str, cols: JsonColumns = JsonColumns()) -> pd.DataFrame:
@@ -286,18 +333,27 @@ def json_to_raw_photometry(
     cols: JsonColumns = JsonColumns(),
     filter_set: str = "GeneralFilters",
     villar_used_only: bool = False,
+    drop_repeated: bool = False,
+    vega_spectrum: str | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, list[BandConversion]]:
     """Build the ``1_LCs_flux_raw`` table from compiled-photometry JSON records.
 
     Magnitudes are taken as given (any dust/extinction handling must already be reflected
     in the JSON). A row is kept when it has a numeric MJD, magnitude and magnitude error,
-    an AB (or unspecified, assumed AB) magnitude system, and a matching filter curve.
+    an AB, Vega, or unspecified (assumed AB) magnitude system, and a matching filter curve.
+    Vega magnitudes are converted to AB with :func:`vega_to_ab_offset` using the
+    ``vega_spectrum`` file (required if any kept row is Vega), so the ``Mag`` column is
+    always AB. ``drop_repeated`` drops rows marked ``R`` in ``Repeated obs``;
+    ``villar_used_only`` keeps only rows marked ``*`` in ``Used in Villar model?``.
     Fluxes are computed at the filter pivot wavelength (:func:`convert_raw_photometry`).
 
     Returns ``(raw_df, rows_report, band_report)``. ``rows_report`` has one line per JSON
-    row with ``status`` (``kept`` / ``kept_assumed_AB`` / ``dropped``) and ``reason``.
+    row with ``status`` (``kept`` / ``kept_assumed_AB`` / ``kept_converted_from_Vega`` /
+    ``dropped``), ``reason``, the input magnitude/system and the AB magnitude written.
     """
     exact, lower = _filter_index(filters_root, filter_set)
+    vega = None
+    vega_offsets: dict[str, float] = {}
     out_rows, report = [], []
     for i, row in df_json.iterrows():
         mag_s, err_s = row[cols.mag], row[cols.mag_err]
@@ -307,16 +363,31 @@ def json_to_raw_photometry(
         system = row.get(cols.system, "").upper()
         band, how = _match_band(row, cols, exact, lower)
         status, reason = "kept", ""
+        mag_ab = mag
         if villar_used_only and row.get(cols.used, "") != "*":
             status, reason = "dropped", "not used in Villar model"
+        elif drop_repeated and row.get(cols.repeated, "").upper() == "R":
+            status, reason = "dropped", "repeated observation (R)"
         elif mag_s.startswith((">", "<")):
             status, reason = "dropped", "limit (%s)" % mag_s
         elif not (np.isfinite(mjd) and np.isfinite(mag) and np.isfinite(err)):
             status, reason = "dropped", "non-numeric MJD/mag/mag_err"
-        elif system.lower() not in _MISSING and system != "AB":
-            status, reason = "dropped", "magnitude system %r (only AB supported)" % row.get(cols.system)
+        elif system.lower() not in _MISSING and system not in ("AB", "VEGA"):
+            status, reason = "dropped", "magnitude system %r (only AB and Vega supported)" % row.get(cols.system)
         elif band is None:
             status, reason = "dropped", "no filter curve (tried %s)" % how
+        elif system == "VEGA":
+            if vega_spectrum is None:
+                raise ValueError("Vega magnitudes present but no vega_spectrum file given")
+            if band not in vega_offsets:
+                if vega is None:
+                    vega = load_vega_spectrum(vega_spectrum)
+                d = np.loadtxt(resolve_band_filter_path(band, filter_set, filters_root),
+                               usecols=(0, 1), dtype=float)
+                vega_offsets[band] = vega_to_ab_offset(d[:, 0], d[:, 1], *vega)
+            mag_ab = mag + vega_offsets[band]
+            status = "kept_converted_from_Vega"
+            reason = "Vega mag converted to AB (m_AB - m_Vega = %+.4f)" % vega_offsets[band]
         elif system.lower() in _MISSING:
             status, reason = "kept_assumed_AB", "no magnitude system given; assumed AB"
         if status != "dropped" and how.endswith("(case-insensitive)"):
@@ -324,8 +395,10 @@ def json_to_raw_photometry(
         report.append({
             "json_row": i, cols.mjd: row[cols.mjd], cols.telescope: row.get(cols.telescope, ""),
             cols.instrument: row.get(cols.instrument, ""), cols.filter: row[cols.filter],
-            cols.reference: row.get(cols.reference, ""), "band": band or "",
-            "status": status, "reason": reason,
+            cols.reference: row.get(cols.reference, ""), "input_mag": mag_s,
+            "input_system": row.get(cols.system, ""),
+            "Mag_AB": (FLUX_FLOAT_FORMAT % mag_ab) if status != "dropped" else "",
+            "band": band or "", "status": status, "reason": reason,
         })
         if status == "dropped":
             continue
@@ -334,7 +407,7 @@ def json_to_raw_photometry(
             instr = row.get(cols.telescope, "")
         out_rows.append({
             "MJD": row[cols.mjd],
-            "Mag": FLUX_FLOAT_FORMAT % mag,
+            "Mag": FLUX_FLOAT_FORMAT % mag_ab,
             "Mag_err": FLUX_FLOAT_FORMAT % err,
             "Flux": "",
             "Flux_err": "",

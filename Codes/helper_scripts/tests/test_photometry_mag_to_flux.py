@@ -11,6 +11,7 @@ import unittest
 
 import numpy as np
 import pandas as pd
+from scipy.integrate import trapezoid
 
 import photometry_mag_to_flux as m2f  # noqa: E402
 from mangle_spectra_log import band_flux_trapz  # noqa: E402
@@ -154,12 +155,27 @@ def _read(path):
         return f.read()
 
 
-def _json_record(mjd, tel, inst, filt, mag, err, system="AB", used="*"):
+def _json_record(mjd, tel, inst, filt, mag, err, system="AB", used="*", repeated="-"):
     return {
         "MJD": mjd, "Phase": "-", "Instrument": inst, "Telescope": tel, "Filter": filt,
         "Villar Mag": mag, "Villar Mag_err": err, "Villar Delta_Mag": "0",
-        "Refrence": "ref", "Used in Villar model?": used, "AB/VEGA/Etc": system,
+        "Refrence": "ref", "Used in Villar model?": used, "Repeated obs": repeated,
+        "AB/VEGA/Etc": system,
     }
+
+
+def _fake_vega():
+    """Smooth non-flat 'Vega' spectrum (so the AB offset is non-zero)."""
+    w = np.linspace(900.0, 30000.0, 30000)
+    return w, 3.6e-9 * (w / 5500.0) ** -3.5
+
+
+def _brute_ab_minus_vega(fw, ft, vw, vf):
+    g = np.linspace(fw.min(), fw.max(), 200001)
+    t = np.interp(g, fw, ft)
+    fv = np.interp(g, vw, vf)
+    fab = AB_FNU * m2f.C_AA_PER_S / g**2
+    return -2.5 * np.log10(trapezoid(fv * t * g, g) / trapezoid(fab * t * g, g))
 
 
 class TestJsonToRaw(unittest.TestCase):
@@ -171,8 +187,16 @@ class TestJsonToRaw(unittest.TestCase):
         os.makedirs(gf)
         os.makedirs(os.path.join(self.coco, "Inputs", "Photometry", "1_LCs_flux_raw"))
         for name, (lo, hi) in {"Swope_g": (4000.0, 5500.0), "OmegaCAM_r": (5600.0, 7000.0),
-                               "VISTA_Ks": (19000.0, 23500.0)}.items():
+                               "VISTA_Ks": (19000.0, 23500.0), "Sinistro_V": (4800.0, 6000.0)}.items():
             np.savetxt(os.path.join(gf, name + ".dat"), np.column_stack(_tophat(lo, hi)))
+        # Vega spectrum at the default location, as a CALSPEC-style FITS table
+        from astropy.io import fits
+        vw, vf = _fake_vega()
+        os.makedirs(os.path.join(self.coco, "Inputs", "Standards"))
+        self.vega_path = os.path.join(self.coco, m2f.DEFAULT_VEGA_SPECTRUM)
+        fits.HDUList([fits.PrimaryHDU(), fits.BinTableHDU.from_columns([
+            fits.Column(name="WAVELENGTH", format="D", array=vw),
+            fits.Column(name="FLUX", format="D", array=vf)])]).writeto(self.vega_path)
         header = {k: k for k in _json_record(0, "", "", "", 0, 0)}
         header["Villar Mag"] = "-"
         self.records = [
@@ -180,11 +204,13 @@ class TestJsonToRaw(unittest.TestCase):
             _json_record("57983.0", "Swope", "E2V4kx4kccd", "g", 18.1, "0.05", "AB "),  # telescope key
             _json_record("57983.5", "VST", "OmegaCam", "r", 18.4, "0.04"),   # case-insensitive
             _json_record("57984.0", "VISTA", "VIRCAM", "Ks", 18.9, "0.1", "-"),  # assumed AB
-            _json_record("57984.5", "LCO1m", "Sinistro", "V", 19.0, "0.1", "Vega"),  # dropped
+            _json_record("57984.5", "LCO1m", "Sinistro", "V", 19.0, "0.1", "Vega"),  # -> AB
             _json_record("57985.0", "Swope", "E2V4kx4kccd", "g", "-", "-"),  # no mag
             _json_record("57985.5", "KMTNet", "-", "I", 19.2, "0.1"),        # no filter
             _json_record("57986.0", "Swope", "E2V4kx4kccd", "g", 19.5, "0.06", used="-"),
             _json_record("57986.0", "Swope", "E2V4kx4kccd", "g", 19.6, "0.07"),  # duplicate epoch
+            _json_record("57987.0", "Swope", "E2V4kx4kccd", "g", 20.0, "0.1", repeated="R"),
+            _json_record("57987.5", "LCO1m", "Sinistro", "V", 19.4, "0.1", "Jy"),  # unsupported
         ]
         self.json_path = os.path.join(self.coco, "phot.json")
         with open(self.json_path, "w") as f:
@@ -196,14 +222,16 @@ class TestJsonToRaw(unittest.TestCase):
     def test_rows_kept_dropped_and_values(self):
         recs = m2f.load_photometry_json(self.json_path)
         self.assertEqual(len(recs), len(self.records) - 1)  # header row removed
-        raw, rows, _ = m2f.json_to_raw_photometry(recs, self.filters_root)
+        raw, rows, _ = m2f.json_to_raw_photometry(recs, self.filters_root, vega_spectrum=self.vega_path)
         self.assertEqual(list(raw.columns), m2f.RAW_COLUMNS)
-        self.assertEqual(list(raw["band"]), ["Swope_g", "OmegaCAM_r", "VISTA_Ks", "Swope_g", "Swope_g"])
+        self.assertEqual(list(raw["band"]), ["Swope_g", "OmegaCAM_r", "VISTA_Ks", "Sinistro_V",
+                                             "Swope_g", "Swope_g", "Swope_g"])
         self.assertEqual(list(raw["Instr"])[:3], ["E2V4kx4kccd", "OmegaCam", "VIRCAM"])
         self.assertTrue((raw["FilterSet"] == "GeneralFilters").all())
         st = dict(zip(rows["MJD"], rows["status"]))
         self.assertEqual(st["57984.0"], "kept_assumed_AB")
-        self.assertEqual(st["57984.5"], "dropped")
+        self.assertEqual(st["57984.5"], "kept_converted_from_Vega")
+        self.assertEqual(st["57987.5"], "dropped")
         self.assertEqual(st["57985.0"], "dropped")
         self.assertEqual(st["57985.5"], "dropped")
         self.assertIn("case-insensitive", rows.loc[rows["MJD"] == "57983.5", "reason"].iloc[0])
@@ -214,9 +242,47 @@ class TestJsonToRaw(unittest.TestCase):
 
     def test_villar_used_only(self):
         recs = m2f.load_photometry_json(self.json_path)
-        raw, _, _ = m2f.json_to_raw_photometry(recs, self.filters_root, villar_used_only=True)
+        raw, _, _ = m2f.json_to_raw_photometry(recs, self.filters_root, villar_used_only=True,
+                                               vega_spectrum=self.vega_path)
         self.assertNotIn("19.5", list(raw["Mag"]))
-        self.assertEqual(len(raw), 4)
+        self.assertEqual(len(raw), 6)
+
+    def test_drop_repeated_only_drops_R_rows(self):
+        recs = m2f.load_photometry_json(self.json_path)
+        raw, rows, _ = m2f.json_to_raw_photometry(recs, self.filters_root, drop_repeated=True,
+                                                  vega_spectrum=self.vega_path)
+        self.assertEqual(len(raw), 6)
+        self.assertNotIn("20", list(raw["Mag"]))
+        self.assertIn("19.5", list(raw["Mag"]))  # not used by Villar, but not a repeat: kept
+        r = rows.loc[rows["MJD"] == "57987.0"].iloc[0]
+        self.assertEqual((r["status"], r["reason"]), ("dropped", "repeated observation (R)"))
+
+    def test_vega_converted_to_ab(self):
+        recs = m2f.load_photometry_json(self.json_path)
+        raw, rows, _ = m2f.json_to_raw_photometry(recs, self.filters_root, vega_spectrum=self.vega_path)
+        fw, ft = _tophat(4800.0, 6000.0)
+        vw, vf = _fake_vega()
+        offset = _brute_ab_minus_vega(fw, ft, vw, vf)
+        self.assertGreater(abs(offset), 0.01)
+        self.assertAlmostEqual(m2f.vega_to_ab_offset(fw, ft, vw, vf), offset, places=4)
+        mag_ab = float(raw.loc[raw["band"] == "Sinistro_V", "Mag"].iloc[0])
+        self.assertAlmostEqual(mag_ab, 19.0 + offset, places=4)
+        r = rows.loc[rows["MJD"] == "57984.5"].iloc[0]
+        self.assertEqual(r["input_mag"], "19.0")
+        self.assertEqual(r["input_system"], "Vega")
+        self.assertIn("converted to AB", r["reason"])
+        # Flux follows from the AB magnitude, so the file is self-consistent
+        self.assertEqual(m2f.check_raw_photometry(raw, self.filters_root), [])
+
+    def test_vega_offset_zero_for_ab_reference(self):
+        fw, ft = _tophat(4800.0, 6000.0)
+        w = np.linspace(900.0, 30000.0, 30000)
+        self.assertAlmostEqual(m2f.vega_to_ab_offset(fw, ft, w, AB_FNU * m2f.C_AA_PER_S / w**2), 0.0, places=6)
+
+    def test_vega_rows_need_spectrum(self):
+        recs = m2f.load_photometry_json(self.json_path)
+        with self.assertRaises(ValueError):
+            m2f.json_to_raw_photometry(recs, self.filters_root)
 
     def _cli(self, *args):
         return subprocess.run(
