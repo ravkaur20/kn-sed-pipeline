@@ -6,7 +6,7 @@ Pipeline products are written under `Outputs/<SN>/`. This repository ships with 
 
 | Stage | Driver / notebook | Key outputs |
 |-------|-------------------|-------------|
-| 0 | `Codes/0_Mag_to_Flux_KN.py` | No `Outputs/` products; rewrites `Flux`/`Flux_err` in `Inputs/Photometry/1_LCs_flux_raw/<SN>.dat` (run `--check` before every run) |
+| 0 | `Codes/0_Mag_to_Flux_KN.py` | `<SN>_step0_json_rows.csv` (`--from-json` row report); writes `Inputs/Photometry/1_LCs_flux_raw/<SN>.dat` (run `--check` before every run) |
 | 3 | `Codes/3_LCfit_KN_log.py` | `fitted_phot4mangling_AT2017gfo.dat`, `fitted_phot_logspace_AT2017gfo.dat`, optional `fittedGP_*.pdf` |
 | 4 | `Codes/4_Scale_spectra_KN.py` | `AT2017gfo_spec_scale_groups.json`, `AT2017gfo_spec_scale_report.json`, `spec_scale_diagnostics/` (prescaled spectra live under `Inputs/Spectroscopy/2_spec_prescaled/`) |
 | 5 | `Codes/5_Mangle_spectra_KN_log.py` | `mangled_spectra/`, `AT2017gfo_band_mjd_ranges.json`, `figs/mangle_nb5/`, `figs/mangle_epoch/` |
