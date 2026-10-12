@@ -87,16 +87,17 @@ MJD  band  Flux  Flux_err  FilterSet  Instr  Phase  Log_Phase  Log_Flux  Log_Flu
 A raw file under `1_LCs_flux_raw/` is comma-separated and looks like:
 
 ```text
-MJD,Mag,Mag_err,Flux,Flux_err,band,Instr,FilterSet
-57982.981,17.48,0.02,1.89987296516e-16,3.49969533452e-18,Swope_i,E2V4kx4kccd,GeneralFilters
+MJD,Mag,Mag_err,Flux,Flux_err,band,Instr,FilterSet,MagSys
+57982.981,17.48,0.02,1.89987296516e-16,3.49969533452e-18,Swope_i,E2V4kx4kccd,GeneralFilters,AB
+57984.751,19.06,0.07,9.11356117414e-17,5.87573002903e-18,Sinistro_V,Sinistro,GeneralFilters,Vega
 ```
 
-`band` must match a filter file `Inputs/Filters/<FilterSet>/<band>.dat`. `Flux`/`Flux_err` (erg s⁻¹ cm⁻² Å⁻¹) are always written by step 0. You can either let step 0 create this file from a JSON (below), or write `MJD`, `Mag`, `Mag_err`, `band`, `Instr`, `FilterSet` yourself (with placeholder `Flux`/`Flux_err`) and run `--redo-fluxes`.
+`band` must match a filter file `Inputs/Filters/<FilterSet>/<band>.dat`. Files written by step 0 end with a **`MagSys`** column (`AB` or `Vega`) giving the system of `Mag`; it is optional, and a missing column or blank value means AB. `Flux`/`Flux_err` (erg s⁻¹ cm⁻² Å⁻¹) are always written by step 0. You can either let step 0 create this file from a JSON (below), or write `MJD`, `Mag`, `Mag_err`, `band`, `Instr`, `FilterSet` (and `MagSys` if any are Vega) yourself, with placeholder `Flux`/`Flux_err`, and run `--redo-fluxes`. Steps 1–6 read only `MJD`, `band`, `Flux`, `Flux_err` (and pass `FilterSet`/`Instr` through), so the extra column does not affect them. Only QA code reads `Mag` (notebooks 7.5/7.6, `comparison_trapz_lc.py`, `plotting-final.ipynb`); 7.6 reports synthetic magnitudes in each row's own system (`mag_<x>_insys`), while the 7.5 notebooks and `plotting-final.ipynb` still plot `Mag` as AB, which is off by $m_{AB}-m_{\rm Vega}$ for Vega rows (about $-0.01$ mag for the current Sinistro $V$ points).
 
 **Compiled-photometry JSON (recommended source).** A list of records, one per observation, with at least `MJD`, `Telescope`, `Instrument`, `Filter`, `Villar Mag`, `Villar Mag_err`, and `AB/VEGA/Etc` (the `KN_SED_Data*.json` layout; other magnitude keys via `--mag-key`/`--mag-err-key`). Magnitudes are used **exactly as given**: whether Galactic/host extinction has been removed from them must be decided in the JSON *before* step 0 (the pipeline expects **un-dereddened** magnitudes, because notebook 1 applies the dust correction). Step 0 then:
 
 - maps each row to a filter curve `<Instrument>_<Filter>`, else `<Telescope>_<Filter>` (exact match first, then case-insensitive, e.g. `omegacam_g` → `OmegaCam_g.dat`);
-- converts **Vega** magnitudes to AB with the filter's photon-weighted AB−Vega offset, computed from the Vega spectrum `Inputs/Standards/alpha_lyr_stis_006.fits` (CALSPEC; Vega = 0 mag in every band; override with `--vega-spectrum`), so the `Mag` column is always AB;
+- keeps **Vega** magnitudes in Vega (`MagSys = Vega`) and computes their flux from the Vega zero point, using the Vega spectrum `Inputs/Standards/alpha_lyr_stis_006.fits` (CALSPEC; Vega = 0 mag in every band; override with `--vega-spectrum`);
 - drops rows without a numeric MJD/magnitude/error, upper limits, other magnitude systems, and rows with no matching filter curve — add the missing curve to `Inputs/Filters/GeneralFilters/` to keep them;
 - with `--drop-repeated`, drops rows marked `R` in `Repeated obs` (the same measurement copied from another paper) and keeps everything else; with `--villar-used-only`, keeps only rows marked `*` in `Used in Villar model?`;
 - keeps rows with no magnitude system (`-`) as AB, and rows that repeat an MJD+band (the same epoch from several papers), but **flags** both;
@@ -109,7 +110,7 @@ The pipeline compares data and model as **band-integrated** quantities. The mang
 
 $$\langle f_\lambda\rangle = 3631\,\mathrm{Jy}\times 10^{-0.4\,m_{AB}}\,\frac{c}{\lambda_{\rm piv}^2},\qquad \lambda_{\rm piv}=\sqrt{\frac{\int S\lambda\,d\lambda}{\int S/\lambda\,d\lambda}}$$
 
-with $\sigma_F = F\cdot 0.4\ln 10\cdot\sigma_m$. Step 0 applies exactly this at each filter's **pivot** wavelength. Do **not** convert at an "effective", mean, or median wavelength — those give fluxes inconsistent with the rest of the pipeline (an earlier version of the AT2017gfo input used a blue-shifted wavelength and was 0.07–0.6 mag too bright; see issue #3). Vega magnitudes in the JSON are converted to AB first (the same photon-weighted band means give an exact, SED-independent offset, $m_{AB}-m_{\rm Vega}=-2.5\log_{10}\langle f^{\rm Vega}_\lambda\rangle/\langle f^{AB}_\lambda\rangle$); the raw `.dat` file itself is always AB, and a `MagSys` column with non-AB values is rejected there.
+with $\sigma_F = F\cdot 0.4\ln 10\cdot\sigma_m$. Step 0 applies exactly this at each filter's **pivot** wavelength. Do **not** convert at an "effective", mean, or median wavelength — those give fluxes inconsistent with the rest of the pipeline (an earlier version of the AT2017gfo input used a blue-shifted wavelength and was 0.07–0.6 mag too bright; see issue #3). For rows with `MagSys = Vega` the zero point is Vega instead: $\langle f_\lambda\rangle = 10^{-0.4\,m_{\rm Vega}}\,\langle f^{\rm Vega}_\lambda\rangle$, which equals the AB formula applied to $m_{\rm Vega} + (m_{AB}-m_{\rm Vega})$ with the exact, SED-independent band offset $m_{AB}-m_{\rm Vega}=-2.5\log_{10}\langle f^{\rm Vega}_\lambda\rangle/\langle f^{AB}_\lambda\rangle$. The flux is the same whether a point is stored in Vega or converted to AB; only the `Mag` column differs. Other systems are rejected.
 
 Step 0 has three modes (exactly one is required):
 
