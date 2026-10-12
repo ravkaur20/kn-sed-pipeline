@@ -54,7 +54,7 @@ Production scripts already force the Agg backend where they create figures. Sett
 | `Codes/helper_scripts/twodim_gp/` | Vendored two-dimensional Gaussian Process inference and plots |
 | `Codes/helper_scripts/docs/` | Developer phase notes (prescale, iteration, data flow, QA) |
 | `Codes/helper_scripts/tests/` | Unit tests |
-| `Inputs/Photometry/` | Light-curve stages (`1_` raw → `2_` dust-corrected → `3_` extrapolated) |
+| `Inputs/Photometry/` | Light-curve stages (`1_` raw AB mags + step-0 fluxes → `2_` dust-corrected → `3_` extrapolated) |
 | `Inputs/Spectroscopy/` | Original, smoothed, and prescaled spectra plus list files |
 | `Inputs/Filters/` | Filter throughput tables (`GeneralFilters/` and variants) |
 | `Inputs/SNe_Info/` | Metadata table (`info.dat`) used by dust correction |
@@ -66,7 +66,7 @@ Production scripts already force the Agg backend where they create figures. Sett
 
 ## 2. First complete run (AT2017gfo)
 
-This section walks through a full production run on the shipped AT2017gfo inputs. It assumes notebooks 0.1–2 have already produced smoothed spectra and an extrapolated light curve (as in the repository checkout), or that you are willing to run those notebooks first.
+This section walks through a full production run on the shipped AT2017gfo inputs. Always start with step 0 (§2.3), which checks that the raw photometry fluxes are consistent with the AB magnitudes and filter curves. It then assumes notebooks 0.1–2 have produced smoothed spectra and an extrapolated light curve, or that you are willing to run those notebooks first.
 
 ### 2.1 Environment check
 
@@ -89,9 +89,26 @@ python clear_sn_run.py --snname AT2017gfo --yes
 
 This empties `Outputs/AT2017gfo/` but keeps the directory. Prescaled spectra under `Inputs/` are **not** deleted unless you also pass `--include-input-intermediates` (requires `--yes`). Use `--dry-run` to list targets without deleting.
 
-### 2.3 Preparation notebooks (if needed)
+### 2.3 Step 0: magnitudes to fluxes (always run first)
 
-If `Inputs/Photometry/3_LCs_extrapolated/AT2017gfo.dat` and `Inputs/Spectroscopy/2_spec_lists_smoothed/AT2017gfo.list` already exist, you may skip to the scripts. Otherwise open Jupyter from `Codes/` and run:
+```bash
+cd "$COCO_PATH/Codes"
+python 0_Mag_to_Flux_KN.py --snname AT2017gfo --check
+```
+
+`--check` recomputes `Flux`/`Flux_err` in `Inputs/Photometry/1_LCs_flux_raw/AT2017gfo.dat` from `Mag`/`Mag_err` at each filter's pivot wavelength (§5.0) and prints a per-band table. It exits with status 0 if the file is consistent and 1 if any band is stale. If it fails, rewrite the file:
+
+```bash
+python 0_Mag_to_Flux_KN.py --snname AT2017gfo
+```
+
+**Whenever step 0 rewrites the raw file, every downstream product is stale.** Re-run notebooks 1 and 2 (to regenerate `2_LCs_dust_corrected/` and `3_LCs_extrapolated/`) and then steps 3–6. Re-run step 0 whenever you add photometry or change a filter curve.
+
+> **AT2017gfo note (October 2026).** The raw `Flux` column was regenerated with step 0 (issue #3). The previous version used a blue-shifted "effective wavelength" and was 0.07–0.6 mag too bright depending on band. The shipped `2_LCs_dust_corrected/` and `3_LCs_*` files and any existing `Outputs/` were built from the old fluxes and must be regenerated (notebooks 1–2, then steps 3–6) before results are used.
+
+### 2.4 Preparation notebooks (if needed)
+
+If `Inputs/Photometry/3_LCs_extrapolated/AT2017gfo.dat` (built from the current step-0 fluxes) and `Inputs/Spectroscopy/2_spec_lists_smoothed/AT2017gfo.list` already exist, you may skip to the scripts. Otherwise open Jupyter from `Codes/` and run:
 
 1. `0.1_Smooth_spectra_KN.ipynb`
 2. `1_LC_DustCorrection_KN.ipynb`
@@ -99,7 +116,7 @@ If `Inputs/Photometry/3_LCs_extrapolated/AT2017gfo.dat` and `Inputs/Spectroscopy
 
 Confirm that `SN_EXPLOSION_MJD["AT2017gfo"]` in `pipeline_config.py` matches the explosion (merger) time used in notebook 2.
 
-### 2.4 Production scripts
+### 2.5 Production scripts
 
 ```bash
 cd "$COCO_PATH/Codes"
@@ -116,20 +133,22 @@ python 5_Mangle_spectra_KN_log.py --snname AT2017gfo --save-epoch-plots
 python 6_Iterative_GP_mangle_KN.py --snname AT2017gfo --max-iters 20 --verbose
 ```
 
-### 2.5 What each command reads and writes
+### 2.6 What each command reads and writes
 
 | Step | Reads | Writes |
 |------|-------|--------|
+| 0 | `Inputs/Photometry/1_LCs_flux_raw/AT2017gfo.dat` (`Mag`, `Mag_err`, `band`, `FilterSet`), `Inputs/Filters/<FilterSet>/<band>.dat` | Same raw file, `Flux`/`Flux_err` columns only (nothing with `--check`) |
 | 3 | `Inputs/Photometry/3_LCs_extrapolated/AT2017gfo.dat`, spectrum list (for spectroscopy Modified Julian Dates) | `Outputs/AT2017gfo/fitted_phot4mangling_AT2017gfo.dat`, `fitted_phot_logspace_AT2017gfo.dat`, optional `fittedGP_*.pdf` |
 | 4 (groups only) | `2_spec_lists_smoothed/AT2017gfo.list` | `Outputs/AT2017gfo/AT2017gfo_spec_scale_groups.json` |
 | 4 (scale) | Smoothed spectra + groups JSON | `Inputs/Spectroscopy/2_spec_prescaled/AT2017gfo/`, `2_spec_lists_prescaled/AT2017gfo.list`, scale report and diagnostics |
 | 5 | Prescaled list + spectra, `fitted_phot4mangling_*.dat`, filters, raw photometry for band Modified Julian Date windows | `Outputs/AT2017gfo/mangled_spectra/`, `AT2017gfo_band_mjd_ranges.json` (if missing), `figs/mangle_*` |
 | 6 | Mangled spectra, both fitted photometry tables, prescaled list, groups JSON | `Outputs/AT2017gfo/twodim_iter/` (iterations, metrics, final products, diagnostics) |
 
-### 2.6 Expected artifacts checklist
+### 2.7 Expected artifacts checklist
 
 | Step | Key outputs to verify |
 |------|------------------------|
+| 0 | `python 0_Mag_to_Flux_KN.py --snname AT2017gfo --check` prints `OK` and exits 0 |
 | 3 | `fitted_phot4mangling_AT2017gfo.dat` and `fitted_phot_logspace_AT2017gfo.dat` exist and are non-empty |
 | 4 | Prescaled directory contains one file per smoothed spectrum; groups JSON lists XSHOOTER triplets |
 | 5 | `mangled_spectra/` has one mangled file per successfully constrained epoch; epoch PDFs under `figs/mangle_epoch/` |
@@ -145,7 +164,7 @@ Runtime for step 6 depends on iteration count and machine; a short debug run wit
 
 | Stage folder | Written by | Role |
 |--------------|------------|------|
-| `Inputs/Photometry/1_LCs_flux_raw/` | User (or upstream reduction) | Observed fluxes; also used to auto-build `<SN>_band_mjd_ranges.json` in step 5 |
+| `Inputs/Photometry/1_LCs_flux_raw/` | User (`Mag`, `Mag_err`, ...) + step 0 (`Flux`, `Flux_err`) | Observed AB magnitudes and their pivot-wavelength band fluxes; also used to auto-build `<SN>_band_mjd_ranges.json` in step 5 |
 | `Inputs/Photometry/2_LCs_dust_corrected/` | Notebook 1 | Dust-corrected fluxes |
 | `Inputs/Photometry/3_LCs_extrapolated/` | Notebook 2 | Input to step 3 light-curve Gaussian Process |
 | `Inputs/Photometry/3_LCs_early_extrapolated/` | Notebook 2 (intermediate) | Early-only preview or intermediate products in some workflows |
@@ -156,9 +175,13 @@ Legacy checkouts may still have `4_LCs_late_extrapolated/`. The configuration mo
 
 **Extrapolated columns (typical):** `MJD`, `band`, `Flux`, `Flux_err`, `FilterSet`, `Instr`, `Phase`, `Log_Phase`, `Log_Flux`, `Log_Flux_err`.
 
-**Raw columns (typical):** `MJD`, `Mag`, `Mag_err`, `Flux`, `Flux_err`, `band`, `Instr`, `FilterSet`.
+**Raw columns (required):** `MJD`, `Mag`, `Mag_err`, `Flux`, `Flux_err`, `band`, `Instr`, `FilterSet` (comma-separated). `Mag` is an **AB** magnitude in the filter system the measurement was reported in; `band` must match `Inputs/Filters/<FilterSet>/<band>.dat`. You supply the magnitudes; step 0 writes `Flux`/`Flux_err`. An optional `MagSys` column is allowed but must be `AB`.
 
-Fluxes are linear $F_\lambda$-like band fluxes in the same system used by the filter tables. Log columns use $\log_{10}$ flux.
+**Flux convention.** Every `Flux` in the pipeline is the photon-weighted band-mean $F_\lambda$ in erg s$^{-1}$ cm$^{-2}$ Å$^{-1}$,
+$$\langle f_\lambda\rangle=\frac{\int f_\lambda S\lambda\,d\lambda}{\int S\lambda\,d\lambda}
+= 3631\,\mathrm{Jy}\times10^{-0.4m_{AB}}\,\frac{c}{\lambda_{\rm piv}^2},\qquad
+\lambda_{\rm piv}=\sqrt{\frac{\int S\lambda\,d\lambda}{\int S/\lambda\,d\lambda}},$$
+where $S(\lambda)$ is the filter's photon-counting throughput. The second equality holds exactly for AB magnitudes, independent of the source SED, so step 0 converts at the **pivot** wavelength. This is the same quantity the mangling step fits (`band_flux_trapz`) and the standard (photon-counting) AB definition used for synthetic photometry. Errors propagate as $\sigma_F = F\cdot0.4\ln10\cdot\sigma_m$, which is adequate for S/N $\gtrsim$ 10. Log columns use $\log_{10}$ flux.
 
 ### 3.2 Spectroscopy stages
 
@@ -187,7 +210,7 @@ Fluxes are linear $F_\lambda$-like band fluxes in the same system used by the fi
 
 ### 3.3 Filters
 
-Throughput tables live under `Inputs/Filters/GeneralFilters/` for the default AT2017gfo path. The mangling code resolves each band name to a transmission file. Events that need Carnegie Supernova Project (CSP) natural-system filters can be listed in `CSP_SNE` inside `pipeline_config.py` so that CSP-specific filter directories are preferred.
+Throughput tables live under `Inputs/Filters/GeneralFilters/` for the default AT2017gfo path: two columns, wavelength in Å and **photon-counting** throughput (filter $\times$ detector QE $\times$ optics; the overall normalization does not matter). The mangling code and step 0 resolve each band name to a transmission file. Use the curve of the system the magnitudes are **reported** in: the instrument's natural system for natural-system photometry, or the standard system's curve if a paper transformed its photometry to a standard system. If you add or replace a filter curve, re-run step 0, because the pivot wavelength changes. Events that need Carnegie Supernova Project (CSP) natural-system filters can be listed in `CSP_SNE` inside `pipeline_config.py` so that CSP-specific filter directories are preferred.
 
 ### 3.4 Supernova info table
 
@@ -244,6 +267,8 @@ Each notebook should call into `pipeline_config` (or `bootstrap_runtime`) rather
 
 ### 4.2 `1_LC_DustCorrection_KN.ipynb`
 
+**Prerequisite.** Step 0 (`0_Mag_to_Flux_KN.py --check`) passes, so the raw `Flux` column is current.
+
 **Purpose.** Correct photometry for Milky Way (and optional host) extinction so fluxes are closer to intrinsic values before light-curve fitting.
 
 **Typical cell order.** Load `info.dat` and raw light curve → compute $A_\lambda$ from extinction law and $E(B-V)$ → write dust-corrected light curve.
@@ -268,9 +293,9 @@ Each notebook should call into `pipeline_config` (or `bootstrap_runtime`) rather
 
 **When to run.** After `3_LCfit_KN_log.py` succeeds.
 
-### 4.5 Downstream QA notebooks (`7.5_*.ipynb`, `bolometric_luminosity.ipynb`, `plotting-final.ipynb`)
+### 4.5 Downstream QA notebooks (`7.5_*.ipynb`, `7.6_synthetic_photometry_final_gp.ipynb`, `bolometric_luminosity.ipynb`, `plotting-final.ipynb`)
 
-**Purpose.** Compare synthetic photometry from final spectra to the light-curve fit; overlay spectra; construct bolometric luminosity; assemble final figures.
+**Purpose.** Compare synthetic photometry from final spectra to the light-curve fit; overlay spectra; construct bolometric luminosity; assemble final figures. `7.6_synthetic_photometry_final_gp.ipynb` writes synthetic AB magnitudes of `FINAL_spectra_2dim/as_observed` through every observed filter, both on the GP epochs and at each input-photometry row, for chi-squared comparisons against the input data. Use its default `SYNTH_METHOD = "true_ab"`, which matches the step-0 convention.
 
 **Configuration.** Keep `USE_ITER_GP_MANGLE_FINAL = True` (default) so path helpers resolve `twodim_iter/final/` and the QA export under `FINAL_spectra_2dim/`. Re-run the configuration and data-directory cells after changing that flag.
 
@@ -283,6 +308,29 @@ Each notebook should call into `pipeline_config` (or `bootstrap_runtime`) rather
 ## 5. Script drivers
 
 All drivers live in `Codes/` and accept `--snname` and usually `--coco-path`. Defaults come from `pipeline_config.py`.
+
+### 5.0 `0_Mag_to_Flux_KN.py`
+
+**Science role.** Converts the AB magnitudes in `Inputs/Photometry/1_LCs_flux_raw/<SN>.dat` into the band-mean $F_\lambda$ used everywhere downstream (§3.1): $F = 3631\,\mathrm{Jy}\times 10^{-0.4\,\mathrm{Mag}}\, c/\lambda_{\rm piv}^2$, with $\lambda_{\rm piv}$ computed from `Inputs/Filters/<FilterSet>/<band>.dat`, and $\sigma_F = F\cdot 0.4\ln 10\cdot\sigma_{\rm Mag}$. Every other column is left unchanged; rows with an empty `Mag` keep their existing `Flux`.
+
+**Flags.**
+
+| Flag | Default | Meaning |
+|------|---------|---------|
+| `--snname` | `SNNAME_DEFAULT` | Object name (`<SN>.dat`) |
+| `--coco-path` | `COCO_PATH` | Repository root |
+| `--check` | off | Verify only; exit 1 if any band's `Flux` differs from the conversion by more than `--rtol` |
+| `--rtol` | `1e-6` | Relative tolerance for `--check` |
+| `--output` | (overwrite input) | Write the converted table to another path instead |
+
+**Output.** A per-band table (pivot wavelength, number of rows, median `-2.5 log10(Flux_old/Flux_new)`, maximum relative change) followed by `OK`/`FAIL` (with `--check`) or the path written.
+
+```bash
+python 0_Mag_to_Flux_KN.py --snname AT2017gfo --check
+python 0_Mag_to_Flux_KN.py --snname AT2017gfo
+```
+
+**Common failures.** `FileNotFoundError` for a band (the `band` value does not match a filter file name); `ValueError` for non-AB `MagSys` values (only AB is supported).
 
 ### 5.1 `3_LCfit_KN_log.py`
 
@@ -513,6 +561,8 @@ Full constant list: see the source file and its grouped sections.
 
 | Symptom | Likely cause | What to do |
 |---------|----------------|------------|
+| `0_Mag_to_Flux_KN.py --check` fails | Raw `Flux` was made with a different conversion (or a filter curve changed) | Run step 0 without `--check`, then re-run notebooks 1–2 and steps 3–6 |
+| Synthetic mags of the final SED are systematically brighter or fainter than the catalog `Mag` (by a band-dependent amount) | Pipeline was run on fluxes not produced by step 0, or `SYNTH_METHOD` is not `true_ab` | Run step 0 `--check`; regenerate downstream products; use `true_ab` in notebook 7.6 |
 | `no_phot_constraints` in step 5 | No light-curve-fit bands overlap the spectrum epoch within band Modified Julian Date windows | Check `*_band_mjd_ranges.json`, band names, and whether step 3 wrote finite fits for those bands |
 | Missing `*_band_mjd_ranges.json` | Outputs were cleared and step 5 has not run yet | Re-run step 5; it regenerates the JSON from `1_LCs_flux_raw` |
 | Empty or short prescaled list | Step 4 not run, or smoothed list empty | Re-run notebook 0.1 and step 4; verify list paths resolve under `COCO_PATH` |
