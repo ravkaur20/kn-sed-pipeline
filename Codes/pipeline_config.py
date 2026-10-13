@@ -501,7 +501,13 @@ class FilterPlotStyle:
 
 
 def load_filter_plot_style(path: str | None = None) -> FilterPlotStyle:
-    """Load band colors/markers from ``filter_plot_config.json``."""
+    """Load band colors/markers from ``filter_plot_config.json``.
+
+    Unknown bands get a gray / ``o`` fallback (with a warning) instead of a KeyError.
+    """
+    ensure_helper_paths()
+    from band_plot_style import color_style_dict, marker_style_dict  # noqa: PLC0415
+
     cfg_path = path or FILTER_PLOT_CONFIG_PATH
     if not os.path.isfile(cfg_path):
         warnings.warn(
@@ -518,8 +524,8 @@ def load_filter_plot_style(path: str | None = None) -> FilterPlotStyle:
         )
 
         return FilterPlotStyle(
-            color_dict=dict(_DEFAULT_COLOR_DICT if not COLOR_DICT else COLOR_DICT),
-            mark_dict=dict(_DEFAULT_MARK_DICT if not MARK_DICT else MARK_DICT),
+            color_dict=color_style_dict(_DEFAULT_COLOR_DICT if not COLOR_DICT else COLOR_DICT),
+            mark_dict=marker_style_dict(_DEFAULT_MARK_DICT if not MARK_DICT else MARK_DICT),
             exclude_filt=list(_DEFAULT_EXCLUDE if not EXCLUDE_FILT else EXCLUDE_FILT),
             active_filters=None,
             early_bazin_keep=None,
@@ -537,8 +543,8 @@ def load_filter_plot_style(path: str | None = None) -> FilterPlotStyle:
     else:
         early_bazin_keep = [str(x) for x in early_keep_raw]
     bands_raw = raw.get("bands") or {}
-    color_dict: dict[str, str] = {}
-    mark_dict: dict[str, str] = {}
+    color_dict: dict[str, str] = color_style_dict()
+    mark_dict: dict[str, str] = marker_style_dict()
     for name, spec in bands_raw.items():
         if not isinstance(spec, dict):
             continue
@@ -625,8 +631,8 @@ def bootstrap_runtime(
         filter_path=filters_root(coco) + os.sep,
         filter_leaf=general_filters_dir(coco) + os.sep,
         filters_parent=filters_root(coco) + os.sep,
-        color_dict=dict(style.color_dict),
-        mark_dict=dict(style.mark_dict),
+        color_dict=bps.color_style_dict(style.color_dict),
+        mark_dict=bps.marker_style_dict(style.mark_dict),
         exclude_filt=list(style.exclude_filt),
         active_filters=style.active_filters,
         early_bazin_keep=style.early_bazin_keep,

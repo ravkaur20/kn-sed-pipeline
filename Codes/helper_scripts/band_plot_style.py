@@ -5,7 +5,46 @@ Populated from ``filter_plot_config.json`` via ``pipeline_config.load_filter_plo
 
 from __future__ import annotations
 
+import warnings
 from typing import Optional
+
+FALLBACK_COLOR = "gray"
+FALLBACK_MARKER = "o"
+
+
+class StyleDict(dict):
+    """Band -> color/marker map that falls back to ``fallback`` for unknown bands.
+
+    ``d[band]`` never raises for a band missing from ``filter_plot_config.json``; it
+    warns once per band and returns ``fallback``. Bytes keys are decoded first.
+    """
+
+    def __init__(self, *args, fallback: str, kind: str = "style", **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fallback = fallback
+        self.kind = kind
+        self._warned: set[str] = set()
+
+    def __missing__(self, key):
+        name = key.decode() if isinstance(key, bytes) else str(key)
+        if name != key and name in self:
+            return self[name]
+        if name not in self._warned:
+            self._warned.add(name)
+            warnings.warn(
+                "No %s for band %r in filter_plot_config.json; using %r"
+                % (self.kind, name, self.fallback),
+                stacklevel=2,
+            )
+        return self.fallback
+
+
+def color_style_dict(*args, **kwargs) -> StyleDict:
+    return StyleDict(*args, fallback=FALLBACK_COLOR, kind="color", **kwargs)
+
+
+def marker_style_dict(*args, **kwargs) -> StyleDict:
+    return StyleDict(*args, fallback=FALLBACK_MARKER, kind="marker", **kwargs)
 
 _DEFAULT_COLOR_DICT: dict[str, str] = {
     'Swope_i': 'indianred', 'FourStar_H': 'darkred', 'FourStar_J': 'black', 'DECam_i': 'orangered',
@@ -46,8 +85,8 @@ _DEFAULT_MARK_DICT: dict[str, str] = {
 
 _DEFAULT_EXCLUDE: list[str] = []
 
-COLOR_DICT: dict[str, str] = dict(_DEFAULT_COLOR_DICT)
-MARK_DICT: dict[str, str] = dict(_DEFAULT_MARK_DICT)
+COLOR_DICT: dict[str, str] = color_style_dict(_DEFAULT_COLOR_DICT)
+MARK_DICT: dict[str, str] = marker_style_dict(_DEFAULT_MARK_DICT)
 EXCLUDE_FILT: list[str] = list(_DEFAULT_EXCLUDE)
 
 color_dict = COLOR_DICT
