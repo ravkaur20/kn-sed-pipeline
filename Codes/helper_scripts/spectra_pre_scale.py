@@ -51,13 +51,20 @@ class ScaleReport:
 
 
 def resolve_spec_path(path: str, *, coco_path: str | None = None) -> str:
-    """Normalize spectrum paths from list files (rewrite stale repo roots)."""
+    """Normalize spectrum paths from list files (rewrite stale repo roots).
+
+    Relative paths (as written by :func:`write_spec_list`) resolve against ``COCO_PATH``.
+    """
     import pipeline_config as pconf
 
     p = str(path).strip()
+    coco = os.path.normpath(coco_path or pconf.COCO_PATH)
+    if p and not os.path.isabs(p):
+        cand = os.path.join(coco, p)
+        if os.path.isfile(cand):
+            return cand
     if os.path.isfile(p):
         return p
-    coco = os.path.normpath(coco_path or pconf.COCO_PATH)
     if "PyCoCo_templates" in p:
         tail = p.split("PyCoCo_templates", 1)[-1].lstrip("/\\")
         cand = os.path.join(coco, tail.replace("\\", "/"))
@@ -91,11 +98,26 @@ def load_spec_list(list_path: str, *, coco_path: str | None = None) -> list[Spec
     return out
 
 
-def write_spec_list(list_path: str, entries: list[SpectrumEntry]) -> None:
+def _repo_relative(path: str, coco: str) -> str:
+    """``path`` relative to the repo root ``coco`` when inside it, else unchanged."""
+    ap, root = os.path.realpath(path), os.path.realpath(coco)
+    if os.path.commonpath([ap, root]) == root:
+        return os.path.relpath(ap, root)
+    return path
+
+
+def write_spec_list(
+    list_path: str, entries: list[SpectrumEntry], *, coco_path: str | None = None
+) -> None:
+    """Write ``mjd phase path`` rows; paths inside the repo are stored repo-relative
+    so the list works in any checkout or worktree."""
+    import pipeline_config as pconf
+
+    coco = os.path.normpath(coco_path or pconf.COCO_PATH)
     os.makedirs(os.path.dirname(os.path.abspath(list_path)), exist_ok=True)
     with open(list_path, "w", encoding="utf-8") as fh:
         for e in entries:
-            fh.write("%.6f\t%.6f\t%s\n" % (e.mjd, e.phase, e.path))
+            fh.write("%.6f\t%.6f\t%s\n" % (e.mjd, e.phase, _repo_relative(e.path, coco)))
 
 
 def load_scale_groups_json(path: str) -> tuple[OutputMode, list[ScaleGroup]]:
@@ -794,7 +816,7 @@ def run_prescale_pipeline(
         report.ungrouped.append(e.basename)
 
     list_out = pconf.prescaled_spec_list_path(coco_path, snname)
-    write_spec_list(list_out, new_entries)
+    write_spec_list(list_out, new_entries, coco_path=coco_path)
 
     report_path = pconf.spec_scale_report_json_path(output_dir, snname)
     os.makedirs(os.path.dirname(report_path), exist_ok=True)

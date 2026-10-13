@@ -190,6 +190,9 @@ class TestIterativeDriverSmoke(unittest.TestCase):
                 has_txt = any(fn.endswith(".txt") for fn in os.listdir(final_gp))
                 has_npz = os.path.isfile(os.path.join(final_gp, "predictions.npz"))
                 self.assertTrue(has_txt or has_npz)
+            dered = summary.get("final_spec_dereddened_dir")
+            if pc.ITER_EXPORT_FINAL_SPEC_FOR_QA and pc.ITER_EXPORT_DEREDDENED_SED:
+                self.assertTrue(os.path.isfile(os.path.join(dered, "dust_params.json")))
         finally:
             igm.run_iter_gp_fit = saved
 

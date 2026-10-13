@@ -48,16 +48,15 @@ Throughout the pipeline:
 Inputs (photometry + spectroscopy + filters)
     → 0   AB magnitudes → pivot-wavelength band fluxes (photometry)
     → 0.1 Spectral smoothing
-    → 1   Dust correction (photometry)
     → 2   Early/late light-curve extrapolation (Bazin)
     → 3   Per-band one-dimensional GP light-curve fit
     → 4   Spectroscopic arm prescaling
     → 5   Log-space mangling (first pass)
-    → 6   Iterative two-dimensional GP + remangle
+    → 6   Iterative two-dimensional GP + remangle; deredden the final SED
     → 7.5 Downstream QA / bolometric / plots
 ```
 
-Step 0 is the script `0_Mag_to_Flux_KN.py`, which must pass (`--check`) before anything else runs. Preparation notebooks are `0.1`, `1`, and `2`. Production drivers are `3_LCfit_KN_log.py`, `4_Scale_spectra_KN.py`, `5_Mangle_spectra_KN_log.py`, and `6_Iterative_GP_mangle_KN.py`.
+Step 0 is the script `0_Mag_to_Flux_KN.py`, which must pass (`--check`) before anything else runs. Preparation notebooks are `0.1` and `2`. Photometry and spectra stay **as observed** through step 6; dust is removed from the final SED only (§3). Production drivers are `3_LCfit_KN_log.py`, `4_Scale_spectra_KN.py`, `5_Mangle_spectra_KN_log.py`, and `6_Iterative_GP_mangle_KN.py`.
 
 ## 1.4 Photometric flux convention (step 0)
 
@@ -87,7 +86,7 @@ F = 3631\,\mathrm{Jy}\times 10^{-0.4\,m_{AB}}\,\frac{c}{\lambda_{\mathrm{piv}}^{
 $$
 into the `Flux`/`Flux_err` columns of `Inputs/Photometry/1_LCs_flux_raw/<SN>.dat`. The pivot wavelength depends only on the filter. By contrast, the effective wavelength $\lambda_{\mathrm{eff}} = \int \lambda f_\lambda S\lambda\,d\lambda / \int f_\lambda S\lambda\,d\lambda$ depends on the SED, and converting at any other wavelength $\lambda_x$ biases the flux by $5\log_{10}(\lambda_{\mathrm{piv}}/\lambda_x)$ mag. With this convention, comparisons between model and data in magnitude space (synthetic $m_{AB}$ versus catalog $m_{AB}$) and in flux space ($\langle f_\lambda\rangle$ versus `Flux`) are equivalent. The colour of the SED within each band is handled exactly by the band integrals, so no colour-dependent conversion is needed as long as every comparison is band-integrated.
 
-Step 0 builds the raw photometry table either from a compiled-photometry JSON (one record per published magnitude, with telescope, instrument, filter, magnitude system, and reference) or by recomputing the fluxes of an existing table. Magnitudes are used as given; they must not yet be corrected for extinction, which notebook 1 applies (§3). Each magnitude keeps its published system, recorded in a `MagSys` column (AB or Vega). For a Vega magnitude the band flux is $\langle f_\lambda\rangle = 10^{-0.4\,m_{\rm Vega}}\langle f^{\rm Vega}_\lambda\rangle$, with $f^{\rm Vega}_\lambda$ the CALSPEC spectrum of Vega (`Inputs/Standards/alpha_lyr_stis_006.fits`) and Vega defined as 0 mag in every band. Equivalently, the AB pivot identity is applied to
+Step 0 builds the raw photometry table either from a compiled-photometry JSON (one record per published magnitude, with telescope, instrument, filter, magnitude system, and reference) or by recomputing the fluxes of an existing table. Magnitudes are used as given; they must not be corrected for extinction, which is removed from the final SED at the end of step 6 (§3). Each magnitude keeps its published system, recorded in a `MagSys` column (AB or Vega). For a Vega magnitude the band flux is $\langle f_\lambda\rangle = 10^{-0.4\,m_{\rm Vega}}\langle f^{\rm Vega}_\lambda\rangle$, with $f^{\rm Vega}_\lambda$ the CALSPEC spectrum of Vega (`Inputs/Standards/alpha_lyr_stis_006.fits`) and Vega defined as 0 mag in every band. Equivalently, the AB pivot identity is applied to
 $$
 m_{AB} = m_{\mathrm{Vega}} - 2.5\log_{10}\frac{\int f^{\mathrm{Vega}}_\lambda\, S\,\lambda\, d\lambda}{\int f^{AB}_\lambda\, S\,\lambda\, d\lambda},
 $$
@@ -116,31 +115,43 @@ If spectra are already smoothed, this notebook may be skipped and files placed d
 
 \newpage
 
-# 3. Dust correction (notebook 1)
+# 3. Dust: fit as observed, deredden the final SED
 
 ## 3.1 Motivation
 
-Observed fluxes are attenuated by interstellar dust along the line of sight. Correcting to an extinction-free flux puts all bands on a more physical footing before light-curve fitting and mangling.
-
-## 3.2 Extinction law
-
-Notebook `1_LC_DustCorrection_KN.ipynb` uses the `extinction` package (and coordinates from `Inputs/SNe_Info/info.dat`) to evaluate selective extinction $A_\lambda$ for each band’s effective wavelength. For a Cardelli–Clayton–Mathis-like law with total-to-selective ratio $R_V$ and colour excess $E(B-V)$,
+The extinction a broad band suffers depends on the source spectrum across the band,
 
 $$
-A_\lambda = R_V\, E(B-V)\, f\!\left(\frac{1}{\lambda};\, R_V\right),
+A_{\rm band} = -2.5\log_{10}\frac{\int f_\lambda\, 10^{-0.4A(\lambda)}\, S\,\lambda\, d\lambda}{\int f_\lambda\, S\,\lambda\, d\lambda},
 $$
 
-where $f$ is the normalized extinction curve. The flux correction is
+so it cannot be removed from the photometry with one constant per band. Extinction falls steeply with wavelength, so a red source loses less flux in a given band than a blue one, and a kilonova goes from blue to very red within days. Earlier versions of the pipeline dereddened only the photometry (the retired notebook 1), with a flat-spectrum, energy-weighted constant per band, and left the spectra as observed, so the mangling step (§7) absorbed a smoothed copy of the dust curve along with the flux-calibration correction.
+
+The pipeline therefore fits the photometry and the spectra **as observed** (steps 0–6, in the observed frame), so mangling corrects only calibration. The dust is removed once, exactly, from the final SED.
+
+## 3.2 Extinction law and dereddening
+
+For colour excess $E(B-V)$ and total-to-selective ratio $R_V$,
 
 $$
-F_{\mathrm{corr}} = F_{\mathrm{obs}} \times 10^{0.4\, A_\lambda}.
+A(\lambda) = R_V\, E(B-V)\, f\!\left(\frac{1}{\lambda};\, R_V\right),
 $$
 
-Magnitude corrections follow $\Delta m = -A_\lambda$ when magnitudes are used as intermediates.
+where $f$ is the normalized extinction curve of the chosen law (`DUST_LAW`: Cardelli, Clayton \& Mathis 1989 by default; O'Donnell 1994, Fitzpatrick 1999 and Fitzpatrick \& Massa 2007 are also available, all from the `extinction` package). One law is used for both components. At the end of step 6 every final spectrum is dereddened point by point:
 
-## 3.3 Output
+$$
+F_{\rm dered}(\lambda) = F_{\rm obs}(\lambda)\times 10^{0.4\,[A_{\rm MW}(\lambda) + A_{\rm host}(\lambda/(1+z))]},
+$$
 
-Dust-corrected light curves are written to `Inputs/Photometry/2_LCs_dust_corrected/<SN>.dat`. Host extinction may be applied in addition to Milky Way extinction when configured for a given object.
+with Milky Way extinction at the observed wavelength and host extinction at the rest-frame wavelength. The flux errors are scaled by the same factor; the uncertainties of $E(B-V)$ and $R_V$ are not propagated. $E(B-V)_{\rm MW}$, $E(B-V)_{\rm host}$, $R_{V,\rm MW}$, $R_{V,\rm host}$ and $z$ are read from `Inputs/SNe_Info/info.dat`, with no defaults; step 6 checks them before fitting.
+
+## 3.3 Band extinction
+
+Notebook 7.6 synthesizes each band from both SEDs: `mag_AB_obs` from the as-observed SED and `mag_AB_dustcorr` from the dereddened one. Their difference, `A_ext_band`, is the expression in §3.1 evaluated with the model SED at each epoch, so it follows the colour evolution of the transient. For AT2017gfo ($E(B-V)_{\rm MW}=0.105$, no host extinction) it is a few tenths of a magnitude in the optical and a few hundredths in the near-infrared, and it falls by a few hundredths of a magnitude in the blue bands as the kilonova reddens.
+
+## 3.4 Output
+
+`Outputs/<SN>/FINAL_spectra_2dim/as_observed/` holds the final SED as fitted and `FINAL_spectra_2dim/dereddened/` the same files with the dust removed, plus `dust_params.json` recording the law and parameters. Iteration products and `predictions.npz` stay as observed. Because the fit does not depend on the dust parameters, changing them only requires regenerating `dereddened/`.
 
 \newpage
 
@@ -254,7 +265,7 @@ Ungrouped spectra (for example single Magellan/LDSS3 exposures) keep scale facto
 
 ## 7.1 Motivation
 
-Even after dust correction and arm scaling, a spectrum’s synthetic photometry generally does not match the light-curve GP at the same epoch. Mangling multiplies the spectrum by a smooth wavelength-dependent factor so that broadband fluxes agree with photometry **without** destroying spectral features on scales smaller than the filter widths.
+Even after arm scaling, a spectrum’s synthetic photometry generally does not match the light-curve GP at the same epoch. Mangling multiplies the spectrum by a smooth wavelength-dependent factor so that broadband fluxes agree with photometry **without** destroying spectral features on scales smaller than the filter widths.
 
 ## 7.2 Synthetic photometry
 
@@ -465,14 +476,14 @@ Per-iteration QA under `twodim_iter/iter_KK/figs/` includes:
 
 ## 10.1 Final products
 
-When iteration stops, products are copied under `Outputs/<SN>/twodim_iter/final/`, including `full_gp/` extended spectra in linear Å and linear $F_\lambda$. With `ITER_EXPORT_FINAL_SPEC_FOR_QA=True`, QA-oriented copies are also written under `FINAL_spectra_2dim/` with `_FINAL_spec` naming expected by older comparison notebooks.
+When iteration stops, products are copied under `Outputs/<SN>/twodim_iter/final/`, including `full_gp/` extended spectra in linear Å and linear $F_\lambda$. With `ITER_EXPORT_FINAL_SPEC_FOR_QA=True`, QA-oriented copies are also written under `FINAL_spectra_2dim/as_observed/` with `_FINAL_spec` naming expected by older comparison notebooks, and with `ITER_EXPORT_DEREDDENED_SED=True` (default) the dereddened SED under `FINAL_spectra_2dim/dereddened/` (§3).
 
 ## 10.2 Notebooks 7.5 and helpers
 
 - `7.5_comparison_check_log.ipynb` integrates final spectra through filters and compares to the light-curve fit (`comparison_check_log_utils.py`, `comparison_trapz_lc.py`).
-- `7.6_synthetic_photometry_final_gp.ipynb` writes synthetic AB magnitudes of `FINAL_spectra_2dim/as_observed` through every observed filter, on the GP epochs and interpolated to each input-photometry row, for chi-squared tests against the input data (`synthetic_photometry_export.py`). Its default `true_ab` method is the photon-counting definition of §1.4.
+- `7.6_synthetic_photometry_final_gp.ipynb` writes synthetic AB magnitudes of `FINAL_spectra_2dim/as_observed` (`mag_AB_obs`) and `FINAL_spectra_2dim/dereddened` (`mag_AB_dustcorr`, with `A_ext_band` their difference, §3.3) through every observed filter, on the GP epochs and interpolated to each input-photometry row, for chi-squared tests against the input data (`synthetic_photometry_export.py`). Its default `true_ab` method is the photon-counting definition of §1.4.
 - `7.5_spectra.ipynb` / `7.5_alternate.ipynb` overlay spectra.
-- `bolometric_luminosity.ipynb` constructs bolometric light curves from the SED surface.
+- `bolometric_luminosity.ipynb` constructs bolometric light curves from the dereddened SED. The other notebooks use `as_observed`, which matches the photometry they overlay.
 - `rimangle_log_spectrum.py` preserves the convention that some on-disk extended spectra store $\log_{10} F$ while in-memory analysis uses linear $F$.
 
 Set `USE_ITER_GP_MANGLE_FINAL=True` so path resolution prefers `twodim_iter/final/` over legacy branches.
@@ -494,6 +505,8 @@ Item & Default & Role \\
 \texttt{ITER\_MANGLE\_USE\_GP\_WAVELENGTH\_GRID} & True & Full-$\lambda$ remangle constraints \\
 \texttt{ITER\_GP\_WARM\_START} & True & Hyperparameter warm start \\
 \texttt{USE\_ITER\_GP\_MANGLE\_FINAL} & True & Notebooks 7.5 read iter final \\
+\texttt{ITER\_EXPORT\_DEREDDENED\_SED} & True & Write the dereddened final SED \\
+\texttt{DUST\_LAW} & ccm89 & Extinction law for dereddening \\
 2D kernels & Matérn 5/2 additive $w$ and $t$ & Via \texttt{GP\_INFERENCE\_KWARGS} \\
 $\sigma_{\mathrm{phot}}$, $\sigma_{\mathrm{spec}}$ floors & 0.012, 0.005 & Binding jitter floors \\
 \bottomrule
@@ -509,7 +522,6 @@ Edit `Codes/pipeline_config.py` for object-specific $t_0$, redshift, and experim
 Codes/
   0_Mag_to_Flux_KN.py                  step 0: AB mag -> pivot-wavelength band flux
   0.1_Smooth_spectra_KN.ipynb          spectral smoothing
-  1_LC_DustCorrection_KN.ipynb         dust correction
   2_LC_modelRising_KN_fullfit_log.ipynb  Bazin / rising extrapolation
   3_LCfit_KN_log.py                    per-band LC GP driver
   4_Scale_spectra_KN.py                prescale driver
@@ -523,6 +535,7 @@ Codes/
   helper_scripts/
     photometry_mag_to_flux.py          step 0
     synthetic_photometry_export.py     notebook 7.6
+    dust.py                            final-SED dereddening (step 6, notebook 7.6)
     lc_gp_fit.py, lc_gp_kernels.py     step 3
     lc_bazin_models.py, lc_bazin_fit.py  step 2 helpers
     spectra_pre_scale.py               step 4
@@ -536,17 +549,17 @@ Codes/
     comparison_check_log_utils.py, rimangle_log_spectrum.py
     docs/PHASE*.md, ITERATIVE_MANGLING_DATA_FLOW.md
 Inputs/
-  Photometry/{1,2,3}_LCs_*/            LC stages
+  Photometry/{1,3}_LCs_*/              LC stages (as observed)
   Spectroscopy/{1,2}_spec_*/           original / smoothed / prescaled
   Filters/GeneralFilters/              throughput curves
-  SNe_Info/info.dat                    coordinates / types
+  SNe_Info/info.dat                    redshift, coordinates, types, E(B-V), R_V
   Standards/alpha_lyr_stis_006.fits    Vega spectrum (zero point for MagSys = Vega)
   2DIM_priors/                         optional 2D priors
 Outputs/<SN>/
   fitted_phot*.dat                     step 3
   mangled_spectra/                     step 5
   twodim_iter/                         step 6
-  FINAL_spectra_2dim/                  QA export
+  FINAL_spectra_2dim/{as_observed,dereddened}/  final SED
 docs/
   PIPELINE_USER_GUIDE.md               operator manual
   PIPELINE_WRITEUP.md                  this document
@@ -562,5 +575,10 @@ docs/
 - Tokunaga & Vacca 2005, photometric quantities (pivot / effective wavelength): https://ui.adsabs.harvard.edu/abs/2005PASP..117..421T
 - Bessell & Murphy 2012, photon-counting vs energy-integrating responses: https://ui.adsabs.harvard.edu/abs/2012PASP..124..140B
 - Bazin et al. 2011, light-curve functional form: https://arxiv.org/abs/1109.0948
+- Cardelli, Clayton & Mathis 1989, extinction law (default `ccm89`): https://ui.adsabs.harvard.edu/abs/1989ApJ...345..245C
+- O'Donnell 1994, optical update of CCM89 (`odonnell94`): https://ui.adsabs.harvard.edu/abs/1994ApJ...422..158O
+- Fitzpatrick 1999, extinction law (`fitzpatrick99`): https://ui.adsabs.harvard.edu/abs/1999PASP..111...63F
+- Fitzpatrick & Massa 2007, extinction law (`fm07`): https://ui.adsabs.harvard.edu/abs/2007ApJ...663..320F
+- `extinction` package documentation: https://extinction.readthedocs.io/
 - george documentation: https://george.readthedocs.io/
 - Collaborator two-dimensional GP configuration notes (additive Matérn 5/2, jitter floors, early-time tanh blend) are mirrored in `Codes/helper_scripts/twodim_gp/` and in the historical `ryan-final-gp/WRITEUP` handoff.

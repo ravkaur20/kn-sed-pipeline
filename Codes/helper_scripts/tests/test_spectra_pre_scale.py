@@ -179,5 +179,34 @@ class TestSpectraPreScale(unittest.TestCase):
             self.assertEqual(len(spec), 20)
 
 
+class TestSpecListPaths(unittest.TestCase):
+    def test_paths_inside_repo_written_relative_and_resolved(self):
+        from spectra_pre_scale import SpectrumEntry, load_spec_list, write_spec_list
+
+        with tempfile.TemporaryDirectory() as repo, tempfile.TemporaryDirectory() as other:
+            inside = os.path.join(repo, "Inputs", "Spectroscopy", "2_spec_prescaled", "SN", "a.dat")
+            outside = os.path.join(other, "b.dat")
+            for f in (inside, outside):
+                os.makedirs(os.path.dirname(f), exist_ok=True)
+                open(f, "w").close()
+            lst = os.path.join(repo, "Inputs", "Spectroscopy", "2_spec_lists_prescaled", "SN.list")
+            write_spec_list(lst, [SpectrumEntry(57983.0, 0.5, inside, "a.dat"),
+                                  SpectrumEntry(57984.0, 1.5, outside, "b.dat")], coco_path=repo)
+            with open(lst) as fh:
+                cols = [line.split("\t")[2].strip() for line in fh]
+            self.assertEqual(cols[0], os.path.join("Inputs", "Spectroscopy", "2_spec_prescaled", "SN", "a.dat"))
+            self.assertEqual(cols[1], outside)  # outside the repo: kept absolute
+            entries = load_spec_list(lst, coco_path=repo)
+            self.assertEqual(os.path.realpath(entries[0].path), os.path.realpath(inside))
+            self.assertEqual(entries[0].basename, "a.dat")
+            self.assertEqual(entries[1].path, outside)
+
+    def test_absolute_paths_still_load(self):
+        from spectra_pre_scale import resolve_spec_path
+
+        with tempfile.NamedTemporaryFile(suffix=".dat") as fh:
+            self.assertEqual(resolve_spec_path(fh.name), fh.name)
+
+
 if __name__ == "__main__":
     unittest.main()

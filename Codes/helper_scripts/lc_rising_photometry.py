@@ -6,17 +6,34 @@ import os
 from typing import Any
 
 import numpy as np
+import numpy.lib.recfunctions as rfn
 import pandas as pd
 import scipy.optimize as opt
 
 from lc_bazin_fit_config import BazinFitConfig
 from lc_bazin_models import bazin_forced_zero_factory
 
-__all__ = ["EarlyLCPhotometry"]
+__all__ = ["EarlyLCPhotometry", "LC_COLUMNS", "read_lc_columns"]
+
+# Columns notebook 2 works with, in the order clip_LC_filter rebuilds rows.
+LC_COLUMNS: tuple[str, ...] = ("MJD", "band", "Flux", "Flux_err", "FilterSet", "Instr")
+
+
+def read_lc_columns(path: str) -> np.ndarray:
+    """Read a comma-separated light curve and keep :data:`LC_COLUMNS`, in that order.
+
+    Works for the raw step-0 file (``MJD,Mag,Mag_err,Flux,Flux_err,band,Instr,FilterSet[,MagSys]``)
+    and for the older six-column ``#MJD,band,Flux,Flux_err,FilterSet,Instr`` layout.
+    """
+    lc_file = np.genfromtxt(path, dtype=None, encoding="utf-8", names=True, delimiter=",")
+    missing = [c for c in LC_COLUMNS if c not in (lc_file.dtype.names or ())]
+    if missing:
+        raise KeyError("%s is missing column(s) %s" % (path, missing))
+    return rfn.repack_fields(lc_file[list(LC_COLUMNS)])
 
 
 class EarlyLCPhotometry:
-    """Load, clip, and early-extend dust-corrected photometry for one SN."""
+    """Load, clip, and early-extend the (as-observed) photometry for one SN."""
 
     def __init__(
         self,
@@ -60,13 +77,7 @@ class EarlyLCPhotometry:
         if verbose:
             print("Loading %s" % self.sn_rawphot_file)
         try:
-            lc_file = np.genfromtxt(
-                self.sn_rawphot_file,
-                dtype=None,
-                encoding="utf-8",
-                names=True,
-                delimiter=",",
-            )
+            lc_file = read_lc_columns(self.sn_rawphot_file)
             mask_filt = np.array([f not in self.exclude_filt for f in lc_file["band"]])
             lc_no_badfilters = lc_file[mask_filt]
             mask_filt = np.array([~np.isnan(f) for f in lc_no_badfilters["Flux"]])
@@ -386,14 +397,8 @@ class EarlyLCPhotometry:
                 "VISTA_Y",
             ]
 
-        lc_file = pd.DataFrame(
-            np.genfromtxt(
-                self.sn_rawphot_file,
-                names=["MJD", "band", "Flux", "Flux_err", "FilterSet", "Source"],
-                usecols=[0, 1, 2, 3, 4, 5],
-                dtype=None,
-                encoding="utf-8",
-            )
+        lc_file = pd.DataFrame(read_lc_columns(self.sn_rawphot_file)).rename(
+            columns={"Instr": "Source"}
         )
 
         for ff in filters_to_fit:

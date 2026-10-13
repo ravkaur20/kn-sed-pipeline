@@ -80,7 +80,11 @@ Optional QA export (`ITER_EXPORT_FINAL_SPEC_FOR_QA`, default on):
 
 ```
 Outputs/<SN>/FINAL_spectra_2dim/as_observed/{stem}_FINAL_spec.txt
+Outputs/<SN>/FINAL_spectra_2dim/dereddened/{stem}_FINAL_spec.txt   # ITER_EXPORT_DEREDDENED_SED
+Outputs/<SN>/FINAL_spectra_2dim/dereddened/dust_params.json
 ```
+
+Everything up to and including `as_observed` is fit to the photometry and spectra as observed. `dereddened` is `as_observed` with MW (observed frame) and host (rest frame) extinction removed per wavelength by `dust.deredden_final_spectra` (law `DUST_LAW`, parameters from `info.dat`, read and validated at the start of the run).
 
 `predictions.npz` is **per-iteration GP output** (μ, std, X_fill, grid metadata). It is not read from  vendor tree to start a fit.
 
@@ -111,6 +115,8 @@ Secondary logging: RMS Δmask (`MASK_CONVERGENCE_EPS`).
 | `ITER_GP_DENSE_PREDICT_GRID_N` | 100 | Number of log-spaced phase samples merged into prediction grid |
 | `ITER_GP_DIAG_FIGS` | True | Subprocess 2D GP `plot_results` + `plot_bands_gp_overview` each iter |
 | `ITER_EXPORT_FINAL_SPEC_FOR_QA` | True | Copy to `FINAL_spectra_2dim/twodim_iter/...` for 7.5 |
+| `ITER_EXPORT_DEREDDENED_SED` | True | Also write `FINAL_spectra_2dim/dereddened/` |
+| `DUST_LAW` | `"ccm89"` | `ccm89`, `odonnell94`, `fitzpatrick99`, `fm07` |
 | `DIAG_COPY_GP_FIGS` | False | Legacy alias; plots go to `iter_KK/figs/gp_surface/` |
 | `DIAG_WAVELENGTH_SLICES` | True | `gp_results_wavelength_slices.pdf` per iter |
 | `DIAG_TRAINING_GRID_PLOT` | True | `data_for2d_interpolation.pdf` per iter |

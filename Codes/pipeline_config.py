@@ -93,7 +93,7 @@ _gp_inference_kw: dict[str, object] = dict(
     mono_floor_fraction=0.5,
     mono_min_slope=0.005,
     mono_smoothing_scale=0.3,
-    optimize=False,
+    optimize=True,
     max_iter=60,
     optimize_subsample=2500,
     seed=0,
@@ -107,10 +107,14 @@ GP_INFERENCE_KWARGS: dict = dict(_gp_inference_kw)
 
 GP_MODE: str = "extrapolate_spectra"
 FINAL_SPECTRA_VARIANT: str = "as_observed"
+# Steps 0-6 fit photometry and spectra as observed (reddened). At the end of step 6 the
+# FINAL SED is dereddened point by point into FINAL_spectra_2dim/<DEREDDENED variant>/
+# (dust.py); E(B-V), R_V and z come from Inputs/SNe_Info/info.dat.
+FINAL_SPECTRA_VARIANT_DEREDDENED: str = "dereddened"
+DUST_LAW: str = "ccm89"  # one of dust.DUST_LAWS: ccm89, odonnell94, fitzpatrick99, fm07
 
 PHOTOMETRY_STAGES: dict[str, str] = {
     "raw": "1_LCs_flux_raw",
-    "dust_corrected": "2_LCs_dust_corrected",
     "extrapolated": "3_LCs_extrapolated",
 }
 
@@ -382,6 +386,7 @@ ITER_GP_WARM_START: bool = True
 ITER_GP_EXPORT_FULL_GP: bool = True
 ITER_GP_EXPORT_SPLICED: bool = False
 ITER_EXPORT_FINAL_SPEC_FOR_QA: bool = True
+ITER_EXPORT_DEREDDENED_SED: bool = True  # needs ITER_EXPORT_FINAL_SPEC_FOR_QA
 ALLOW_RAW_PHOTOMETRY_TARGET: bool = False
 USE_ITER_GP_MANGLE_FINAL: bool = True
 PLOT_GRID_REBIN: bool = True
@@ -496,7 +501,13 @@ class FilterPlotStyle:
 
 
 def load_filter_plot_style(path: str | None = None) -> FilterPlotStyle:
-    """Load band colors/markers from ``filter_plot_config.json``."""
+    """Load band colors/markers from ``filter_plot_config.json``.
+
+    Unknown bands get a gray / ``o`` fallback (with a warning) instead of a KeyError.
+    """
+    ensure_helper_paths()
+    from band_plot_style import color_style_dict, marker_style_dict  # noqa: PLC0415
+
     cfg_path = path or FILTER_PLOT_CONFIG_PATH
     if not os.path.isfile(cfg_path):
         warnings.warn(
@@ -513,8 +524,8 @@ def load_filter_plot_style(path: str | None = None) -> FilterPlotStyle:
         )
 
         return FilterPlotStyle(
-            color_dict=dict(_DEFAULT_COLOR_DICT if not COLOR_DICT else COLOR_DICT),
-            mark_dict=dict(_DEFAULT_MARK_DICT if not MARK_DICT else MARK_DICT),
+            color_dict=color_style_dict(_DEFAULT_COLOR_DICT if not COLOR_DICT else COLOR_DICT),
+            mark_dict=marker_style_dict(_DEFAULT_MARK_DICT if not MARK_DICT else MARK_DICT),
             exclude_filt=list(_DEFAULT_EXCLUDE if not EXCLUDE_FILT else EXCLUDE_FILT),
             active_filters=None,
             early_bazin_keep=None,
@@ -532,8 +543,8 @@ def load_filter_plot_style(path: str | None = None) -> FilterPlotStyle:
     else:
         early_bazin_keep = [str(x) for x in early_keep_raw]
     bands_raw = raw.get("bands") or {}
-    color_dict: dict[str, str] = {}
-    mark_dict: dict[str, str] = {}
+    color_dict: dict[str, str] = color_style_dict()
+    mark_dict: dict[str, str] = marker_style_dict()
     for name, spec in bands_raw.items():
         if not isinstance(spec, dict):
             continue
@@ -620,8 +631,8 @@ def bootstrap_runtime(
         filter_path=filters_root(coco) + os.sep,
         filter_leaf=general_filters_dir(coco) + os.sep,
         filters_parent=filters_root(coco) + os.sep,
-        color_dict=dict(style.color_dict),
-        mark_dict=dict(style.mark_dict),
+        color_dict=bps.color_style_dict(style.color_dict),
+        mark_dict=bps.marker_style_dict(style.mark_dict),
         exclude_filt=list(style.exclude_filt),
         active_filters=style.active_filters,
         early_bazin_keep=style.early_bazin_keep,
