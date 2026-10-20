@@ -100,8 +100,8 @@ class TestGp2dimGridIterSmoke(unittest.TestCase):
             d.save_plot_path = tmp
         d.grids = (np.linspace(3.35, 3.55, 8), [])
         d.grid_norm_info = {"norm1": 4.0, "norm2": 1.8, "offset2": -2.0, "offset": 0.0, "scale_factor": 1.0}
-        d.pipeline_wl_min_a = None
-        d.pipeline_wl_max_a = None
+        d.sed_wl_min_a = None
+        d.sed_wl_max_a = None
         d.gp_predict_n_wavelength = 12
         d.gp_predict_wl_step = 0.05
         d.gp_predict_dense_log_phase = False

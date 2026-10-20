@@ -235,6 +235,23 @@ def log10_wavelength_from_x1_norm(x1_norm, gn):
 	return _x1_norm_to_log10_wavelength(x1_norm, gn)
 
 
+def prediction_log_wavelength_range(GP2DIM_Class):
+	"""log10(Angstrom) span of the 2D GP prediction grid.
+
+	The training grid ``grids[0]`` widened to ``sed_wl_min_a`` / ``sed_wl_max_a`` (the SED
+	wavelength range set by ``FullMangledSeries_Class.set_sed_wavelength_range``).
+	"""
+	wls_min = float(np.min(GP2DIM_Class.grids[0]))
+	wls_max = float(np.max(GP2DIM_Class.grids[0]))
+	_wl_min_a = getattr(GP2DIM_Class, "sed_wl_min_a", None)
+	_wl_max_a = getattr(GP2DIM_Class, "sed_wl_max_a", None)
+	if _wl_min_a is not None:
+		wls_min = min(wls_min, float(np.log10(float(_wl_min_a))))
+	if _wl_max_a is not None:
+		wls_max = max(wls_max, float(np.log10(float(_wl_max_a))))
+	return wls_min, wls_max
+
+
 def mangled_wls_max_is_linear_angstrom(wls_arr):
 	"""True if ``wls`` look like linear Å (KN log-mangle saves ``raw_spec['wls']`` this way)."""
 	w = np.asarray(wls_arr, dtype=float)
@@ -729,14 +746,7 @@ def run_2DGP_GRID(GP2DIM_Class, y_data_nonan, y_data_nonan_err, x1_data_norm, x2
 	# wls_max = np.max(GP2DIM_Class.grids[0])
 	# wls_normed_range = np.arange(wls_min, wls_max + 1, 40) / GP2DIM_Class.grid_norm_info['norm1']
 
-	wls_min = float(np.min(GP2DIM_Class.grids[0]))
-	wls_max = float(np.max(GP2DIM_Class.grids[0]))
-	_wl_min_a = getattr(GP2DIM_Class, "pipeline_wl_min_a", None)
-	_wl_max_a = getattr(GP2DIM_Class, "pipeline_wl_max_a", None)
-	if _wl_min_a is not None:
-		wls_min = min(wls_min, float(np.log10(float(_wl_min_a))))
-	if _wl_max_a is not None:
-		wls_max = max(wls_max, float(np.log10(float(_wl_max_a))))
+	wls_min, wls_max = prediction_log_wavelength_range(GP2DIM_Class)
 	span_wl = float(wls_max - wls_min)
 	if span_wl <= 0.0:
 		raise ValueError("run_2DGP_GRID: invalid log10(wavelength) span (wls_max <= wls_min).")

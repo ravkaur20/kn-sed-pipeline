@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import re as _re
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -46,6 +47,43 @@ def default_filters_dir(coco_path: str | None = None) -> str:
     return os.path.join(base, "Inputs", "Filters")
 
 
+def raw_photometry_bands(raw_photometry_path: str) -> list[str]:
+    """Bands in the raw photometry file (``band`` column); empty if the file is missing."""
+    if not os.path.isfile(raw_photometry_path):
+        warnings.warn(
+            "No raw photometry at %s; the SED wavelength range ignores filter edges."
+            % raw_photometry_path,
+            stacklevel=2,
+        )
+        return []
+    bands = pd.read_csv(raw_photometry_path, usecols=["band"])["band"]
+    return sorted(bands.dropna().astype(str).str.strip().unique())
+
+
+def filter_wavelength_span(
+    bands, filters_dir: str, snname: str, csp_sne=()
+) -> tuple[float, float] | None:
+    """Bluest and reddest wavelength (Angstrom) with nonzero transmission over ``bands``.
+
+    Bands without a filter file are skipped with a warning; None if no band has one.
+    """
+    lo, hi = np.inf, -np.inf
+    for band in bands:
+        path = _resolve_filter_path(filters_dir, band, snname, tuple(csp_sne))
+        if not os.path.isfile(path):
+            warnings.warn(
+                "No filter curve for band %r (%s); it does not set the SED wavelength range."
+                % (band, path),
+                stacklevel=2,
+            )
+            continue
+        filt = np.genfromtxt(path, dtype=None, encoding="utf-8", names=["wls", "flux"])
+        wls = np.asarray(filt["wls"], dtype=float)[np.asarray(filt["flux"], dtype=float) > 0.0]
+        if wls.size:
+            lo, hi = min(lo, float(wls.min())), max(hi, float(wls.max()))
+    return (lo, hi) if hi > lo else None
+
+
 class FullMangledSeries_Class():
     """Class to load and mangle a single spectrum:
     """
@@ -67,7 +105,7 @@ class FullMangledSeries_Class():
                  mode='extrapolate_spectra', verbose=False, DELTA=50.,
                  output_dir=None, filters_dir=None, twodim_layout='classic',
                  prepare_output_dir=True, mangled_spectra_dir=None,
-                 csp_sne=None):
+                 csp_sne=None, raw_photometry_path=None):
         """
         mode: ``extrapolate_spectra`` (production; extend mode removed)
         """
@@ -77,6 +115,8 @@ class FullMangledSeries_Class():
         self.t0_fix = t0_fix
         self.output_dir = (output_dir or _pconf.outputs_root()).rstrip(os.sep) + os.sep
         self.filters_dir = (filters_dir or default_filters_dir()).rstrip(os.sep) + os.sep
+        # Its bands' filter edges widen the SED wavelength range (pconf.SED_WAVELENGTH_RANGE).
+        self.raw_photometry_path = raw_photometry_path or _pconf.raw_photometry_path(None, snname)
         self.twodim_layout = str(twodim_layout)
         self.mangled_spectra_dir = mangled_spectra_dir
         if csp_sne is None:
@@ -93,8 +133,6 @@ class FullMangledSeries_Class():
         else:
             self.save_plot_path = None
             self.save_dual_products = True
-            self.pipeline_wl_min_a = _pconf.PIPELINE_WL_MIN_A
-            self.pipeline_wl_max_a = _pconf.PIPELINE_WL_MAX_A
         
         # --- CHANGED: Point to the new logspace file ---
         self.path_fit_phot = self.output_dir+'/%s/fitted_phot_logspace_%s.dat'%(snname,snname)
@@ -226,8 +264,6 @@ have the right decimals.""")
 
         self.save_plot_path = save_plot_path
         self.save_dual_products = True
-        self.pipeline_wl_min_a = _pconf.PIPELINE_WL_MIN_A
-        self.pipeline_wl_max_a = _pconf.PIPELINE_WL_MAX_A
         self.gp_white_noise = float(_pconf.GP_WHITE_NOISE)
         self.gp_predict_dense_log_phase = False
         self.gp_predict_dense_log_phase_n = 64
@@ -452,8 +488,28 @@ have the right decimals.""")
         grid_all = pd.DataFrame(col_flux, index=grid_wls)
         grid_all_err = pd.DataFrame(col_fluxerr, index=grid_wls)
         self.grids = [grid_wls, grid_mjd, grid_all, grid_all_err]
-        
+        self.set_sed_wavelength_range(10.0 ** min_log_wls, 10.0 ** max_log_wls)
+
         return grid_wls, grid_mjd, grid_all, grid_all_err
+
+    def set_sed_wavelength_range(self, spec_lo_a, spec_hi_a):
+        """Set ``sed_wl_min_a`` / ``sed_wl_max_a``, the Angstrom span of the 2D GP prediction grid.
+
+        The data span is the spectra (``spec_lo_a`` to ``spec_hi_a``) widened to the filter edges
+        of every raw-photometry band, then ``pconf.sed_wavelength_range`` applies the config.
+        """
+        lo, hi = float(spec_lo_a), float(spec_hi_a)
+        bands = raw_photometry_bands(self.raw_photometry_path)
+        span = filter_wavelength_span(
+            bands, self.filters_dir, self.snname, getattr(self, "csp_sne", ())
+        )
+        if span is not None:
+            lo, hi = min(lo, span[0]), max(hi, span[1])
+        self.sed_wl_min_a, self.sed_wl_max_a = _pconf.sed_wavelength_range(self.snname, lo, hi)
+        print(
+            "SED wavelength range: %.1f - %.1f A (spectra %.1f - %.1f A)"
+            % (self.sed_wl_min_a, self.sed_wl_max_a, spec_lo_a, spec_hi_a)
+        )
 
     
     def band_flux_modified(self, filter_name, file):
