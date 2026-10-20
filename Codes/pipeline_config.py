@@ -53,8 +53,13 @@ CSP_SNE: tuple[str, ...] = ()
 
 PRE_BUMP_SNAMES: tuple[str, ...] = ()
 
-PIPELINE_WL_MIN_A: float | None = None
-PIPELINE_WL_MAX_A: float | None = None
+# Wavelength span of the 2D GP prediction grid, and so of the FINAL SED, per SN: (min, max)
+# in observer-frame Angstrom. Either end may be None. Unlisted SNe use the data: the bluest and
+# reddest of the spectra and of every raw-photometry band's filter curve (outermost nonzero
+# transmission), so a chopped spectrum edge does not narrow the SED where photometry reaches.
+# The span is never narrower than the data; a range past the data is kept with a warning, and
+# the GP extrapolates there.
+SED_WAVELENGTH_RANGE: dict[str, tuple[float | None, float | None]] = {}
 
 GP_WHITE_NOISE: float = 0.1**2
 USE_TWO_D_GP_ZSCORE_COORDS: bool = True
@@ -201,6 +206,53 @@ def sed_log_phase_range(
         hi = max(hi, req)
     if hi <= lo:
         raise ValueError("SED time range is empty (log phase %s to %s)" % (lo, hi))
+    return lo, hi
+
+
+def sed_wavelength_range(
+    snname: str, data_lo: float, data_hi: float
+) -> tuple[float, float]:
+    """Angstrom bounds of the SED: ``SED_WAVELENGTH_RANGE[snname]`` widened to the data.
+
+    ``data_lo`` / ``data_hi`` are the bluest and reddest data wavelengths in Angstrom.
+    """
+    lo, hi = float(data_lo), float(data_hi)
+    start, end = SED_WAVELENGTH_RANGE.get(snname, (None, None))
+    for value, label in ((start, "min"), (end, "max")):
+        if value is not None and float(value) <= 0.0:
+            raise ValueError(
+                "SED_WAVELENGTH_RANGE[%r] %s = %s must be positive" % (snname, label, value)
+            )
+    if start is not None:
+        req = float(start)
+        if req < lo:
+            warnings.warn(
+                "SED_WAVELENGTH_RANGE min (%.1f A) is bluer than the data (%.1f A); "
+                "the GP extrapolates over that span." % (req, lo),
+                stacklevel=2,
+            )
+        else:
+            print(
+                "SED_WAVELENGTH_RANGE min (%.1f A) is redder than the data; "
+                "using the data min (%.1f A)." % (req, lo)
+            )
+        lo = min(lo, req)
+    if end is not None:
+        req = float(end)
+        if req > hi:
+            warnings.warn(
+                "SED_WAVELENGTH_RANGE max (%.1f A) is redder than the data (%.1f A); "
+                "the GP extrapolates over that span." % (req, hi),
+                stacklevel=2,
+            )
+        else:
+            print(
+                "SED_WAVELENGTH_RANGE max (%.1f A) is bluer than the data; "
+                "using the data max (%.1f A)." % (req, hi)
+            )
+        hi = max(hi, req)
+    if hi <= lo:
+        raise ValueError("SED wavelength range is empty (%s to %s A)" % (lo, hi))
     return lo, hi
 
 
