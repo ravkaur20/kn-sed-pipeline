@@ -636,6 +636,14 @@ have the right decimals.""")
             # Always extend grid to latest LC log-phase so photometry can be placed to last observation
             if np.isfinite(_lc_hi) and float(np.max(mjds_extention)) < _lc_hi - 1e-9:
                 mjds_extention = np.sort(np.unique(np.concatenate([mjds_extention, np.array([_lc_hi])])))
+            # Same at the start: the LC table may begin before any band's data
+            # (pconf.SED_TIME_RANGE start earlier than the data), so reach its first row too.
+            _lc_lo = float(np.nanmin(LC_fit['Log_Phase'].values))
+            _grid_lo = float(np.min(mjds_extention))
+            if len(grid_notext.columns) > 0:
+                _grid_lo = min(_grid_lo, float(np.min(np.asarray(grid_notext.columns, dtype=float))))
+            if np.isfinite(_lc_lo) and _lc_lo < _grid_lo - 1e-6:
+                mjds_extention = np.sort(np.unique(np.concatenate([np.array([_lc_lo]), mjds_extention])))
             mjds_grid = np.sort(
                 np.unique(
                     np.round(

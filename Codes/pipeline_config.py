@@ -27,6 +27,15 @@ SN_EXPLOSION_MJD: dict[str, float] = {
     "AT2017gfo": 57982.52851852,
 }
 
+# Time span of the step-3 LC GP grid, and so of the 2D GP grid and the FINAL SED, per SN:
+# (start, end) in SED_TIME_RANGE_UNIT. "phase" = observer-frame days since SN_EXPLOSION_MJD
+# (same as Log_Phase); "mjd" = calendar MJD. Either end may be None. Unlisted SNe use the data.
+# The span is never narrower than the data (first/last spectrum or photometry epoch); a range
+# past the data is kept with a warning, and the GPs extrapolate there.
+SED_TIME_RANGE: dict[str, tuple[float | None, float | None]] = {}
+SED_TIME_RANGE_UNIT: str = "phase"  # "phase" | "mjd"
+LC_GP_LOG_PHASE_STEP: float = 0.01  # dex; step-3 LC GP grid spacing
+
 REFERENCE_BAND_CANDIDATES: tuple[str, ...] = (
     "Swope_V",
     "Sinistro_V",
@@ -131,6 +140,83 @@ def explosion_date_mjd(snname: str) -> float:
     if snname not in SN_EXPLOSION_MJD:
         raise KeyError("No explosion MJD configured for %r" % snname)
     return float(SN_EXPLOSION_MJD[snname])
+
+
+def sed_log_phase_range(
+    snname: str,
+    data_lo: float,
+    data_hi: float,
+    *,
+    t0_mjd: float | None = None,
+) -> tuple[float, float]:
+    """log10(phase) bounds of the SED grid: ``SED_TIME_RANGE[snname]`` widened to the data.
+
+    ``data_lo`` / ``data_hi`` are the first and last data epochs in log10(phase days).
+    ``t0_mjd`` converts MJD entries to phase (default: ``explosion_date_mjd(snname)``).
+    """
+    lo, hi = float(data_lo), float(data_hi)
+    start, end = SED_TIME_RANGE.get(snname, (None, None))
+    unit = str(SED_TIME_RANGE_UNIT).lower()
+    if unit not in ("phase", "mjd"):
+        raise ValueError("SED_TIME_RANGE_UNIT must be 'phase' or 'mjd', got %r" % unit)
+    if unit == "mjd" and (start is not None or end is not None):
+        t0 = float(t0_mjd) if t0_mjd is not None else explosion_date_mjd(snname)
+
+    def _to_log_phase(value: float, label: str) -> float:
+        phase = float(value) - t0 if unit == "mjd" else float(value)
+        if phase <= 0.0:
+            raise ValueError(
+                "SED_TIME_RANGE[%r] %s = %s %s is at or before explosion"
+                % (snname, label, value, unit)
+            )
+        return math.log10(phase)
+
+    if start is not None:
+        req = _to_log_phase(start, "start")
+        if req < lo:
+            warnings.warn(
+                "SED_TIME_RANGE start (phase %.4g d) is before the first data epoch "
+                "(phase %.4g d); the GPs extrapolate over that span." % (10**req, 10**lo),
+                stacklevel=2,
+            )
+        else:
+            print(
+                "SED_TIME_RANGE start (phase %.4g d) is after the first data epoch; "
+                "using the data start (phase %.4g d)." % (10**req, 10**lo)
+            )
+        lo = min(lo, req)
+    if end is not None:
+        req = _to_log_phase(end, "end")
+        if req > hi:
+            warnings.warn(
+                "SED_TIME_RANGE end (phase %.4g d) is after the last data epoch "
+                "(phase %.4g d); the GPs extrapolate over that span." % (10**req, 10**hi),
+                stacklevel=2,
+            )
+        else:
+            print(
+                "SED_TIME_RANGE end (phase %.4g d) is before the last data epoch; "
+                "using the data end (phase %.4g d)." % (10**req, 10**hi)
+            )
+        hi = max(hi, req)
+    if hi <= lo:
+        raise ValueError("SED time range is empty (log phase %s to %s)" % (lo, hi))
+    return lo, hi
+
+
+def log_phase_grid(lo: float, hi: float, step: float | None = None) -> "np.ndarray":
+    """Grid from ``lo`` to ``hi`` in ``step`` dex that includes both end points."""
+    import numpy as np  # noqa: PLC0415
+
+    step = float(LC_GP_LOG_PHASE_STEP if step is None else step)
+    grid = np.arange(float(lo), float(hi), step)
+    if grid.size == 0:
+        return np.array([float(lo), float(hi)]) if hi > lo else np.array([float(lo)])
+    if float(hi) - grid[-1] < step / 2.0 and grid.size > 1:
+        grid[-1] = float(hi)  # avoid a near-duplicate last point
+    else:
+        grid = np.append(grid, float(hi))
+    return grid
 
 
 def excluded_bands(style: "FilterPlotStyle | None" = None) -> list[str]:
