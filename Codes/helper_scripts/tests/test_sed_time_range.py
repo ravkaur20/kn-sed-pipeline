@@ -118,3 +118,21 @@ def test_bounds_use_photometry_t0_for_mjd(tmp_path, sed_range):
     with pytest.warns(UserWarning):
         _, hi = sn.sed_log_phase_bounds()
     assert hi == pytest.approx(math.log10(40.0))
+
+
+def test_log_phase_grid_keeps_included_data_ends():
+    data_hi = DATA_HI
+    grid = pconf.log_phase_grid(DATA_LO, math.log10(30.0), 0.01, include=(DATA_LO, data_hi))
+    assert data_hi in grid
+    assert grid[-1] == pytest.approx(math.log10(30.0))
+    assert np.all(np.diff(grid) > 0.0)
+
+
+def test_extended_range_keeps_last_data_epoch_on_grid(tmp_path, sed_range):
+    sed_range((None, 30.0))
+    sn = _photometry_sn(tmp_path, np.log10([0.5]))
+    with pytest.warns(UserWarning):
+        lo, hi = sn.sed_log_phase_bounds()
+    grid = pconf.log_phase_grid(lo, hi, include=sn.data_log_phase_bounds)
+    assert np.max(sn.phot["Log_Phase"]) in grid
+    assert grid[-1] == pytest.approx(math.log10(30.0))

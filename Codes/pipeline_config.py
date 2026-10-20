@@ -204,18 +204,35 @@ def sed_log_phase_range(
     return lo, hi
 
 
-def log_phase_grid(lo: float, hi: float, step: float | None = None) -> "np.ndarray":
-    """Grid from ``lo`` to ``hi`` in ``step`` dex that includes both end points."""
+def log_phase_grid(
+    lo: float, hi: float, step: float | None = None, include: tuple[float, ...] = ()
+) -> "np.ndarray":
+    """Grid from ``lo`` to ``hi`` in ``step`` dex that includes both end points.
+
+    Each value in ``include`` inside the span (e.g. the first and last data epochs when
+    ``SED_TIME_RANGE`` reaches past them) replaces the nearest node within ``step / 2``,
+    or is added.
+    """
     import numpy as np  # noqa: PLC0415
 
     step = float(LC_GP_LOG_PHASE_STEP if step is None else step)
-    grid = np.arange(float(lo), float(hi), step)
+    lo, hi = float(lo), float(hi)
+    grid = np.arange(lo, hi, step)
     if grid.size == 0:
-        return np.array([float(lo), float(hi)]) if hi > lo else np.array([float(lo)])
-    if float(hi) - grid[-1] < step / 2.0 and grid.size > 1:
-        grid[-1] = float(hi)  # avoid a near-duplicate last point
+        return np.array([lo, hi]) if hi > lo else np.array([lo])
+    if hi - grid[-1] < step / 2.0 and grid.size > 1:
+        grid[-1] = hi  # avoid a near-duplicate last point
     else:
-        grid = np.append(grid, float(hi))
+        grid = np.append(grid, hi)
+    for val in include:
+        val = float(val)
+        if not lo < val < hi:
+            continue
+        i = int(np.argmin(np.abs(grid - val)))
+        if abs(grid[i] - val) < step / 2.0 and 0 < i < grid.size - 1:
+            grid[i] = val
+        else:
+            grid = np.sort(np.append(grid, val))
     return grid
 
 

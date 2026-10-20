@@ -590,9 +590,13 @@ have the right decimals.""")
             _gap_d = float(getattr(self, 'extrapolate_gap_fill_days', 0.1))
             _cad_d = float(getattr(self, 'extrapolate_gap_fill_cadence_days', 0.1))
             spec_cols = np.asarray(grid_notext.columns, dtype=float)
+            # Span the whole LC table (the SED range, pconf.SED_TIME_RANGE), which can reach
+            # past every band's data, so the extrapolated stretch gets the same cadence.
+            _fill_lo = min(min(min_mjds_LC), float(np.nanmin(LC_fit['Log_Phase'].values)))
+            _fill_hi = max(max(max_mjds_LC), float(np.nanmax(LC_fit['Log_Phase'].values)))
             gap_fill_logs = GP2dim.fill_gaps_phase_logspace(
-                min(min_mjds_LC),
-                max(max_mjds_LC),
+                _fill_lo,
+                _fill_hi,
                 spec_cols,
                 gap_size_days=_gap_d,
                 cadence_days=_cad_d,

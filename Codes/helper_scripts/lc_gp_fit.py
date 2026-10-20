@@ -374,7 +374,9 @@ class SNPhotometryClass():
         
         print ('Log_Phase range', maxLogPhase-minLogPhase)
         # Step pconf.LC_GP_LOG_PHASE_STEP dex; both end points included
-        new_log_phase = pconf.log_phase_grid(minLogPhase, maxLogPhase)
+        new_log_phase = pconf.log_phase_grid(
+            minLogPhase, maxLogPhase, include=getattr(self, "data_log_phase_bounds", ())
+        )
 
         LC_filt_extended = self.get_singlefilter(filt, extended_clipped=True)
         log_phase = LC_filt_extended['Log_Phase']
@@ -452,6 +454,8 @@ class SNPhotometryClass():
         if log_phase_spectra.size:
             data_lo = min(data_lo, float(np.min(log_phase_spectra)))
             data_hi = max(data_hi, float(np.max(log_phase_spectra)))
+        # Kept as grid nodes so the first and last data epochs stay on the grid
+        self.data_log_phase_bounds = (data_lo, data_hi)
         t0_fix = self.phot['MJD'][0] - self.phot['Phase'][0]
         return pconf.sed_log_phase_range(self.snname, data_lo, data_hi, t0_mjd=t0_fix)
 
