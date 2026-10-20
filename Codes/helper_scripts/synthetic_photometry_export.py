@@ -214,13 +214,24 @@ def _mag_columns(df: pd.DataFrame) -> list[str]:
 
 
 def interpolate_to_observations(
-    grid: pd.DataFrame, obs: pd.DataFrame, *, t0_mjd: float
+    grid: pd.DataFrame,
+    obs: pd.DataFrame,
+    *,
+    t0_mjd: float,
+    min_coverage: float = 0.99,
+    mjd_text: Iterable[str] | None = None,
 ) -> pd.DataFrame:
     """Interpolate each band's synthetic LC to the observed ``MJD`` rows of ``obs``.
 
-    Linear in log10(phase) and in magnitude. Rows outside a band's synthetic phase range
-    (or bands without valid synthetic mags) get NaN. ``input_row`` is the 0-based row
-    index of ``obs`` (the raw photometry file) for joining.
+    Linear in log10(phase) and in magnitude between the two GP epochs that bracket each
+    observation (no rounding or nearest-epoch matching). Rows outside a band's synthetic
+    phase range, or bands without valid synthetic mags, get NaN, and ``nan_reason`` says
+    why (empty when the first synthetic magnitude column is finite). ``input_row`` is the
+    0-based row index of ``obs`` (the raw photometry file) for joining.
+
+    ``mjd_text``: the input file's MJD strings; when given, the output ``MJD`` column is
+    written exactly as in the input (the interpolation still uses the numeric values).
+    ``min_coverage`` must match the value used for the grid (only used in ``nan_reason``).
     """
     mag_cols = _mag_columns(grid)
     out = pd.DataFrame({
@@ -235,7 +246,9 @@ def interpolate_to_observations(
     for c in mag_cols + ["coverage_frac", "excluded_from_fit", "nearest_gp_epoch_dt_days"]:
         out[c] = np.nan
     out["excluded_from_fit"] = out["excluded_from_fit"].astype(object)
+    reason = np.full(len(out), "band not synthesized (no filter curve)", dtype=object)
 
+    main = mag_cols[0] if mag_cols else None
     for b, g in grid.groupby("band", sort=False):
         sel = (out["band"] == b).to_numpy()
         if not sel.any():
@@ -250,12 +263,39 @@ def interpolate_to_observations(
                 inside = np.isfinite(x) & (x >= gx[ok].min()) & (x <= gx[ok].max())
                 vals[inside] = np.interp(x[inside], gx[ok], g[c].to_numpy()[ok])
             out.loc[sel, c] = vals
-        out.loc[sel, "coverage_frac"] = float(g["coverage_frac"].min())
+        cov = float(g["coverage_frac"].min())
+        out.loc[sel, "coverage_frac"] = cov
         out.loc[sel, "excluded_from_fit"] = bool(g["excluded_from_fit"].iloc[0])
         mjd_obs = out.loc[sel, "MJD"].to_numpy()
         out.loc[sel, "nearest_gp_epoch_dt_days"] = np.min(
             np.abs(mjd_obs[:, None] - gmjd[None, :]), axis=1
         )
+        # why a value is missing
+        ok = np.isfinite(g[main].to_numpy())
+        r = np.full(x.shape, "", dtype=object)
+        if not ok.any():
+            r[:] = ("filter only %.0f%% inside the GP wavelength range (needs >= %.0f%%)"
+                    % (100 * cov, 100 * min_coverage)) if cov < min_coverage else "no valid synthetic magnitude"
+        else:
+            ph = 10.0 ** gx[ok]
+            p = phase[sel]
+            r[~np.isfinite(x)] = "MJD before t0"
+            r[np.isfinite(x) & (x < gx[ok].min())] = "MJD before first GP epoch (%.4f d)" % ph.min()
+            r[np.isfinite(x) & (x > gx[ok].max())] = [
+                "MJD after last GP epoch (phase %.3f d > %.3f d)" % (pi, ph.max())
+                for pi in p[np.isfinite(x) & (x > gx[ok].max())]
+            ]
+            vals = out.loc[sel, main].to_numpy()
+            r[(r == "") & ~np.isfinite(vals)] = "no valid synthetic magnitude at bracketing epochs"
+        reason[sel] = r
+    out["nan_reason"] = reason
+    if mjd_text is not None:
+        txt = [str(s).strip() for s in mjd_text]
+        if len(txt) != len(out):
+            raise ValueError("mjd_text has %d entries for %d rows" % (len(txt), len(out)))
+        if not np.allclose(pd.to_numeric(pd.Series(txt)).to_numpy(), out["MJD"].to_numpy(), rtol=0, atol=1e-9):
+            raise ValueError("mjd_text does not match obs['MJD']")
+        out["MJD"] = txt
     return out
 
 
