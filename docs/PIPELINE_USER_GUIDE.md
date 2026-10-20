@@ -630,6 +630,8 @@ cd Codes
 PYTHONPATH=.:helper_scripts python -m unittest discover -s helper_scripts/tests -v
 ```
 
+Tests never write to the real `Outputs/` tree: anything that runs pipeline code writes to a temporary directory. A guard in `helper_scripts/tests/_outputs_guard.py` makes any write under `Outputs/` (or `$COCO_PATH/Outputs/`) raise `PermissionError`, and fails the run at exit if `Outputs/` changed anyway (issue #9). Tests that need AT2017gfo products only read them, and skip if they are missing.
+
 ---
 
 ## 9. Developer documentation and PDF generation

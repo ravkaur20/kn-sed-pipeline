@@ -1,5 +1,6 @@
 import _bootstrap_paths  # noqa: F401
 import os
+import shutil
 import tempfile
 import unittest
 
@@ -92,11 +93,11 @@ class TestIterativeDriverSmoke(unittest.TestCase):
         import pipeline_config as pc
         from iterative_gp_mangle import run_iterative_gp_mangle
 
-        with self.assertRaises(ValueError):
+        with tempfile.TemporaryDirectory() as td, self.assertRaises(ValueError):
             run_iterative_gp_mangle(
                 "SN",
                 coco_path=pc.COCO_PATH,
-                output_dir=pc.outputs_root(),
+                output_dir=td,
                 t0_fix=57982.0,
                 mode="extrapolate_spectra",
                 max_iters=1,
@@ -107,11 +108,31 @@ class TestIterativeDriverSmoke(unittest.TestCase):
         import pipeline_config as pc
         from iterative_gp_mangle import run_iterative_gp_mangle
 
-        out_root = pc.outputs_root()
         sn = pc.SNNAME_DEFAULT
-        mangled_dir = os.path.join(out_root, sn, "mangled_spectra")
-        if not os.path.isdir(mangled_dir):
-            self.skipTest("AT2017gfo mangled_spectra missing (run NB5 first)")
+        real_sn_dir = os.path.join(pc.outputs_root(), sn)
+        # Driver inputs read from output_dir; everything else it writes (issue #9).
+        inputs = [
+            "mangled_spectra",
+            "fitted_phot4mangling_%s.dat" % sn,
+            os.path.basename(pc.band_mjd_ranges_json_path(pc.outputs_root(), sn)),
+            os.path.basename(pc.spec_scale_groups_json_path(pc.outputs_root(), sn)),
+        ]
+        missing = [n for n in inputs if not os.path.exists(os.path.join(real_sn_dir, n))]
+        if missing:
+            self.skipTest("AT2017gfo step-5 outputs missing (run NB5 first): %s" % missing)
+
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        out_root = tmp.name
+        sn_dir = os.path.join(out_root, sn)
+        os.makedirs(sn_dir)
+        for n in inputs:
+            src = os.path.join(real_sn_dir, n)
+            if os.path.isdir(src):
+                shutil.copytree(src, os.path.join(sn_dir, n))
+            else:
+                shutil.copy2(src, os.path.join(sn_dir, n))
+        mangled_dir = os.path.join(sn_dir, "mangled_spectra")
 
         def _stub(*_args, **_kwargs):
             from spectra_pre_scale import load_spec_list
@@ -185,6 +206,7 @@ class TestIterativeDriverSmoke(unittest.TestCase):
                 verbose=False,
             )
             self.assertEqual(len(summary["iterations"]), 1)
+            self.assertTrue(os.path.realpath(summary["final_dir"]).startswith(os.path.realpath(out_root)))
             final_gp = os.path.join(summary["final_dir"], "full_gp")
             if os.path.isdir(final_gp):
                 has_txt = any(fn.endswith(".txt") for fn in os.listdir(final_gp))
