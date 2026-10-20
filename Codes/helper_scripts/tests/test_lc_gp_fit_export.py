@@ -69,6 +69,18 @@ def test_full_fitted_LC_file_writes_logspace_table(tmp_path):
     assert np.isfinite(mu_a).any()
 
 
+def test_full_fitted_LC_file_keeps_band_end_points(tmp_path):
+    sn = _make_sn(tmp_path)
+    grid = np.array([0.0, 0.05, 0.15, 0.25, 0.3])
+    for band in sn.avail_filters:
+        sn.fitted_phot[band]["fit_highcadence"] = [grid, np.full(5, -15.0), np.full(5, 0.05)]
+    sn.create_results_folder()
+    df = sn.full_fitted_LC_file()
+
+    finite = np.isfinite(df["BandA_log_flux"].values)
+    np.testing.assert_array_equal(finite, [False, True, True, True, False])
+
+
 def test_mangling_GPfile_writes_mangling_table(tmp_path):
     sn = _make_sn(tmp_path)
     sn.create_results_folder()

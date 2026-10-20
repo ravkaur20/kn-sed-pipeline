@@ -63,6 +63,20 @@ __all__ = [
 ]
 
 
+# FINAL spectrum filenames store log10(phase) to 6 decimals, so the first/last GP epoch
+# can sit up to 5e-7 dex inside the data epoch it was placed on.
+_FINAL_STEM_LOG_PHASE_TOL = 5e-7
+
+
+def _snap_to_grid_ends(x, gx):
+    """Move ``x`` within ``_FINAL_STEM_LOG_PHASE_TOL`` of the grid's ends onto them."""
+    lo, hi = float(np.min(gx)), float(np.max(gx))
+    x = np.asarray(x, dtype=float).copy()
+    x[(x < lo) & (lo - x <= _FINAL_STEM_LOG_PHASE_TOL)] = lo
+    x[(x > hi) & (x - hi <= _FINAL_STEM_LOG_PHASE_TOL)] = hi
+    return x
+
+
 def _weight(wls: np.ndarray, method: str) -> np.ndarray:
     if method == "true_ab":
         return wls
@@ -260,8 +274,9 @@ def interpolate_to_observations(
             ok = np.isfinite(g[c].to_numpy())
             vals = np.full(x.shape, np.nan)
             if ok.sum() >= 2:
-                inside = np.isfinite(x) & (x >= gx[ok].min()) & (x <= gx[ok].max())
-                vals[inside] = np.interp(x[inside], gx[ok], g[c].to_numpy()[ok])
+                xc = _snap_to_grid_ends(x, gx[ok])
+                inside = np.isfinite(xc) & (xc >= gx[ok].min()) & (xc <= gx[ok].max())
+                vals[inside] = np.interp(xc[inside], gx[ok], g[c].to_numpy()[ok])
             out.loc[sel, c] = vals
         cov = float(g["coverage_frac"].min())
         out.loc[sel, "coverage_frac"] = cov
@@ -279,6 +294,7 @@ def interpolate_to_observations(
         else:
             ph = 10.0 ** gx[ok]
             p = phase[sel]
+            x = _snap_to_grid_ends(x, gx[ok])
             r[~np.isfinite(x)] = "MJD before t0"
             r[np.isfinite(x) & (x < gx[ok].min())] = "MJD before first GP epoch (%.4f d)" % ph.min()
             r[np.isfinite(x) & (x > gx[ok].max())] = [

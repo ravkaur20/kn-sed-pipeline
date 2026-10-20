@@ -123,6 +123,21 @@ class TestGridAndInterpolation(unittest.TestCase):
         self.assertTrue(np.isnan(out.loc[2, "mag_AB_obs"]))  # band not synthesized
         self.assertAlmostEqual(out.loc[3, "mag_AB_obs"], 20.0, places=3)
 
+    def test_observation_at_rounded_last_epoch_is_kept(self):
+        """FINAL stems round log phase to 6 decimals; the last data epoch still gets a value."""
+        g = sp.synth_lightcurves_on_grid(
+            self.final_dir, ["Top_hat"], {"Top_hat": self.filt}, t0_mjd=self.t0,
+        )
+        obs = pd.DataFrame({
+            "MJD": self.t0 + 10 ** np.array([1.0 + 4e-7, -0.5 - 4e-7, 1.0 + 2e-6]),
+            "band": ["Top_hat"] * 3,
+        })
+        out = sp.interpolate_to_observations(g, obs, t0_mjd=self.t0)
+        self.assertAlmostEqual(out.loc[0, "mag_AB_obs"], 21.0, places=3)
+        self.assertAlmostEqual(out.loc[1, "mag_AB_obs"], 19.5, places=3)
+        self.assertTrue(np.isnan(out.loc[2, "mag_AB_obs"]))
+        self.assertTrue(out.loc[2, "nan_reason"].startswith("MJD after last GP epoch"))
+
     def test_nan_reasons(self):
         # second filter only half inside the spectrum range (3000-25000 A)
         np.savetxt(os.path.join(self.tmp.name, "Half.dat"), np.column_stack(_tophat(2000.0, 4000.0)))

@@ -367,14 +367,16 @@ class SNPhotometryClass():
         
         # MAPPED TO LOG SPACE
         log_phase_spectra = self.get_spec_log_phase()
-        if minLogPhase is None:
-            minLogPhase= min([min(log_phase_spectra),np.min(self.clipped_phot['Log_Phase'])])  
-        if maxLogPhase is None:
-            maxLogPhase= np.max(self.phot['Log_Phase'])
+        if minLogPhase is None or maxLogPhase is None:
+            sed_lo, sed_hi = self.sed_log_phase_bounds()
+            minLogPhase = sed_lo if minLogPhase is None else minLogPhase
+            maxLogPhase = sed_hi if maxLogPhase is None else maxLogPhase
         
         print ('Log_Phase range', maxLogPhase-minLogPhase)
-        # Using 0.01 step size for log space
-        new_log_phase = np.arange(minLogPhase, maxLogPhase, 0.01)
+        # Step pconf.LC_GP_LOG_PHASE_STEP dex; both end points included
+        new_log_phase = pconf.log_phase_grid(
+            minLogPhase, maxLogPhase, include=getattr(self, "data_log_phase_bounds", ())
+        )
 
         LC_filt_extended = self.get_singlefilter(filt, extended_clipped=True)
         log_phase = LC_filt_extended['Log_Phase']
@@ -444,9 +446,27 @@ class SNPhotometryClass():
                                  'fit_mjdspec':  [log_phase_spectra, mu_mjdspec, std_mjdspec]}
         return None
 
+    def sed_log_phase_bounds(self):
+        """log10(phase) span of the LC grid: data span widened by ``pconf.SED_TIME_RANGE``."""
+        log_phase_spectra = np.asarray(self.get_spec_log_phase(), dtype=float)
+        data_lo = float(np.min(self.clipped_phot['Log_Phase']))
+        data_hi = float(np.max(self.phot['Log_Phase']))
+        if log_phase_spectra.size:
+            data_lo = min(data_lo, float(np.min(log_phase_spectra)))
+            data_hi = max(data_hi, float(np.max(log_phase_spectra)))
+        # Kept as grid nodes so the first and last data epochs stay on the grid
+        self.data_log_phase_bounds = (data_lo, data_hi)
+        t0_fix = self.phot['MJD'][0] - self.phot['Phase'][0]
+        return pconf.sed_log_phase_range(self.snname, data_lo, data_hi, t0_mjd=t0_fix)
+
     def LCfit_withGP(self, minLogPhase=None, maxLogPhase=None):
         if not hasattr(self, "phot"):
             self.load()
+
+        if minLogPhase is None or maxLogPhase is None:
+            sed_lo, sed_hi = self.sed_log_phase_bounds()
+            minLogPhase = sed_lo if minLogPhase is None else minLogPhase
+            maxLogPhase = sed_hi if maxLogPhase is None else maxLogPhase
 
         if not hasattr(self, "fitted_phot"):
             print ('Computing GP fit (for the first time)')
@@ -525,7 +545,8 @@ If you want to do again the LC fit call the function self.LCfit_withGP() again."
             log_flux = self.fitted_phot[i]["fit_highcadence"][1]
             log_flux_err = self.fitted_phot[i]["fit_highcadence"][2]
 
-            mask_out = (log_phases <= min_lp) | (log_phases >= max_lp)
+            # Keep the band's own first and last epochs (grid includes the data end points)
+            mask_out = (log_phases < min_lp) | (log_phases > max_lp)
             log_flux[mask_out] = np.nan
             log_flux_err[mask_out] = np.nan
 
