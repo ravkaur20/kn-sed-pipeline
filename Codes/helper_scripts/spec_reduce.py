@@ -42,6 +42,14 @@ TELLURIC_BANDS = [
     (17900, 19600),  # H2O (between H and K)
 ]
 
+# Input files that are already de-redshifted (rest frame), matched by a
+# substring of the file name. ``load_raw`` moves them to the observed frame
+# (wl * (1 + z)) so every spectrum starts in the same frame as the photometry.
+# AT2017gfo LDSS3: O2 A/B telluric residuals sit at 7594/(1+z), 6867/(1+z).
+REST_FRAME_FILES = {
+    "AT2017gfo": ["LDSS3"],
+}
+
 # Shading colours for each kind of proposed region.
 REGION_COLORS = {
     "spike": "tab:red",
@@ -75,6 +83,10 @@ def load_raw(snname, filename):
     2-column files: wavelength, flux (no errors).
     4-column XSHOOTER files: wavelength, telluric-corrected flux,
     uncorrected flux, sigma. We use the telluric-corrected flux.
+
+    Files listed in ``REST_FRAME_FILES`` are shifted to the observed frame.
+    Only the wavelengths are shifted; any (1+z) flux factor is a constant
+    that mangling absorbs.
     """
     data = np.genfromtxt(os.path.join(RAW_DIR, snname, filename),
                          comments="#", skip_header=1)
@@ -93,7 +105,19 @@ def load_raw(snname, filename):
     }
     if spec["err"] is not None and not np.any(spec["err"] > 0):
         spec["err"] = None
+
+    spec["shifted_to_observed"] = is_rest_frame(snname, filename)
+    if spec["shifted_to_observed"]:
+        z = pconf.SN_REDSHIFT[snname]
+        spec["wl"] = spec["wl"] * (1 + z)
+        print("%s is rest frame: shifted to observed frame (z = %g)"
+              % (filename, z))
     return spec
+
+
+def is_rest_frame(snname, filename):
+    """True if this input file is listed as already de-redshifted."""
+    return any(key in filename for key in REST_FRAME_FILES.get(snname, []))
 
 
 def pixel_size(wl):
@@ -315,7 +339,8 @@ def apply_clip(spec, regions, edges, anchor_A=10.0):
         err = bridge(wl, err, bad, anchor_A)
 
     return {"name": spec["name"], "wl": wl, "flux": flux, "err": err,
-            "weight": (~bad).astype(float)}
+            "weight": (~bad).astype(float),
+            "shifted_to_observed": spec.get("shifted_to_observed", False)}
 
 
 # ---------------------------------------------------------------------------
@@ -339,8 +364,9 @@ def load_choices(snname, filename=None):
 def save_clipped(snname, mjd, clipped, regions, edges, note=""):
     """Write the clipped spectrum, record the choices, update the list file.
 
-    The spectrum file has columns ``wls flux flux_err weight``; ``flux_err``
-    is NaN when the input had no errors (filled in at the error step).
+    The spectrum file has columns ``wls flux flux_err weight``, always in the
+    observed frame; ``flux_err`` is NaN when the input had no errors (filled
+    in at the error step).
     """
     out_dir = os.path.join(CLIP_DIR, snname)
     os.makedirs(out_dir, exist_ok=True)
@@ -357,6 +383,7 @@ def save_clipped(snname, mjd, clipped, regions, edges, note=""):
 
     allc = load_choices(snname)
     allc[name] = {"mjd": mjd, "edges": list(edges),
+                  "shifted_to_observed": bool(clipped.get("shifted_to_observed")),
                   "regions": [list(r) for r in merge_regions(regions)],
                   "note": note}
     with open(choices_path(snname), "w") as f:
