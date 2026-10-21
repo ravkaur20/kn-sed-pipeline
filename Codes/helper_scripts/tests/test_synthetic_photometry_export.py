@@ -123,6 +123,60 @@ class TestGridAndInterpolation(unittest.TestCase):
         self.assertTrue(np.isnan(out.loc[2, "mag_AB_obs"]))  # band not synthesized
         self.assertAlmostEqual(out.loc[3, "mag_AB_obs"], 20.0, places=3)
 
+    def test_observation_at_rounded_last_epoch_is_kept(self):
+        """FINAL stems round log phase to 6 decimals; the last data epoch still gets a value."""
+        g = sp.synth_lightcurves_on_grid(
+            self.final_dir, ["Top_hat"], {"Top_hat": self.filt}, t0_mjd=self.t0,
+        )
+        obs = pd.DataFrame({
+            "MJD": self.t0 + 10 ** np.array([1.0 + 4e-7, -0.5 - 4e-7, 1.0 + 2e-6]),
+            "band": ["Top_hat"] * 3,
+        })
+        out = sp.interpolate_to_observations(g, obs, t0_mjd=self.t0)
+        self.assertAlmostEqual(out.loc[0, "mag_AB_obs"], 21.0, places=3)
+        self.assertAlmostEqual(out.loc[1, "mag_AB_obs"], 19.5, places=3)
+        self.assertTrue(np.isnan(out.loc[2, "mag_AB_obs"]))
+        self.assertTrue(out.loc[2, "nan_reason"].startswith("MJD after last GP epoch"))
+
+    def test_nan_reasons(self):
+        # second filter only half inside the spectrum range (3000-25000 A)
+        np.savetxt(os.path.join(self.tmp.name, "Half.dat"), np.column_stack(_tophat(2000.0, 4000.0)))
+        g = sp.synth_lightcurves_on_grid(
+            self.final_dir, ["Top_hat", "Half"],
+            {"Top_hat": self.filt, "Half": os.path.join(self.tmp.name, "Half.dat")}, t0_mjd=self.t0,
+        )
+        obs = pd.DataFrame({
+            "MJD": self.t0 + np.array([10 ** 0.25, 10 ** 1.2, 10 ** -0.8, -1.0, 2.0, 2.0]),
+            "band": ["Top_hat", "Top_hat", "Top_hat", "Top_hat", "Half", "Other"],
+        })
+        out = sp.interpolate_to_observations(g, obs, t0_mjd=self.t0)
+        r = list(out["nan_reason"])
+        self.assertEqual(r[0], "")
+        self.assertTrue(r[1].startswith("MJD after last GP epoch (phase 15.849 d > 10.000 d)"), r[1])
+        self.assertTrue(r[2].startswith("MJD before first GP epoch"), r[2])
+        self.assertEqual(r[3], "MJD before t0")
+        self.assertTrue(r[4].startswith("filter only ") and "GP wavelength range" in r[4], r[4])
+        self.assertEqual(r[5], "band not synthesized (no filter curve)")
+        # every NaN has a reason and every value has none
+        self.assertTrue(((out["nan_reason"] == "") == out["mag_AB_obs"].notna()).all())
+
+    def test_mjd_text_written_as_in_input(self):
+        g = sp.synth_lightcurves_on_grid(
+            self.final_dir, ["Top_hat"], {"Top_hat": self.filt}, t0_mjd=self.t0,
+        )
+        obs = pd.DataFrame({"MJD": [57984.0, 57985.123], "band": ["Top_hat", "Top_hat"]})
+        out = sp.interpolate_to_observations(g, obs, t0_mjd=self.t0, mjd_text=["57984", "57985.123"])
+        self.assertEqual(list(out["MJD"]), ["57984", "57985.123"])
+        with tempfile.TemporaryDirectory() as d:  # survives the notebook's float_format on write
+            p = os.path.join(d, "at.csv")
+            out.to_csv(p, index=False, float_format="%.6f")
+            self.assertEqual(list(pd.read_csv(p, dtype=str)["MJD"]), ["57984", "57985.123"])
+        # value is interpolated, not rounded to an epoch
+        x = np.log10(57985.123 - self.t0)
+        self.assertAlmostEqual(out.loc[1, "mag_AB_obs"], 20.0 + x, places=3)
+        with self.assertRaises(ValueError):
+            sp.interpolate_to_observations(g, obs, t0_mjd=self.t0, mjd_text=["57984", "57999"])
+
 
 class TestMagSystemColumns(unittest.TestCase):
     def test_vega_rows_shifted_ab_rows_unchanged(self):

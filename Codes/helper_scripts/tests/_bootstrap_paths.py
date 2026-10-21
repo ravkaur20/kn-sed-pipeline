@@ -14,3 +14,8 @@ for _p in (CODES, HELPER_SCRIPTS):
         sys.path.insert(0, _p)
 
 TWODIM_GP = os.path.join(HELPER_SCRIPTS, "twodim_gp")
+
+# Tests must never write into the real Outputs/ tree (issue #9).
+import _outputs_guard  # noqa: E402
+
+_outputs_guard.install(REPO_ROOT)

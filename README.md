@@ -163,6 +163,8 @@ After step 4, the pipeline writes **prescaled** spectra to `Inputs/Spectroscopy/
 
 - Edit or extend `Inputs/SNe_Info/info.dat` with a row for each new transient: redshift `z`, coordinates, type fields, and the dust parameters `EBV_MW`, `EBV_host`, `RV_MW`, `RV_host`. All four dust columns are required; step 6 stops before fitting if any is missing (see [Dust](#dust)).
 - Set the explosion (or merger) Modified Julian Date and redshift in [`Codes/pipeline_config.py`](Codes/pipeline_config.py) under `SN_EXPLOSION_MJD` and `SN_REDSHIFT`. For AT2017gfo these are already filled in.
+- Optionally set how long the final SED should cover in `SED_TIME_RANGE` (per supernova, `(start, end)`), in days since explosion or in MJD (`SED_TIME_RANGE_UNIT = "phase"` or `"mjd"`). Either end can be `None`. The range is never narrower than the data: by default the final SED runs from the first to the last spectrum or photometry epoch, and a range past the data is kept, with a warning, and filled by Gaussian Process extrapolation. Step 3 sets this span, and steps 4 to 6 follow it, so rerun from step 3 after changing it.
+- Optionally set the wavelength span of the final SED in `SED_WAVELENGTH_RANGE` (per supernova, `(min, max)` in observer-frame angstroms). Either end can be `None`. The range is never narrower than the data: by default the final SED runs from the bluest to the reddest of the spectra and of every raw-photometry band's filter curve (outermost nonzero transmission), so trimming a bad spectrum edge does not narrow the SED where photometry reaches. A range past the data is kept, with a warning, and filled by Gaussian Process extrapolation. Step 6 sets this span, so rerun step 6 after changing it.
 - Filter transmission curves live under `Inputs/Filters/GeneralFilters/`. Band colors, markers, and exclusion lists for plots are controlled by [`Codes/filter_plot_config.json`](Codes/filter_plot_config.json).
 
 #### 4. Optional two-dimensional prior
@@ -342,6 +344,8 @@ with $A(\lambda)$ from the `extinction` package. Galactic dust is evaluated at t
 Shared defaults live in [`Codes/pipeline_config.py`](Codes/pipeline_config.py). Edit that file (or override via command-line flags where supported) for:
 
 - Default supernova name, explosion Modified Julian Date, and redshift
+- Time span of the light-curve grid and the final SED (`SED_TIME_RANGE`, `SED_TIME_RANGE_UNIT`)
+- Wavelength span of the final SED (`SED_WAVELENGTH_RANGE`)
 - Whether steps 5 and 6 read prescaled lists (`USE_PRESCALED_SPECTRA`)
 - Bundle-aware mangling (`MANGLE_BUNDLE_AWARE`) and mangling kernel mode (`MANGLE_GP_KERNEL_MODE`, default `fixed_5` for PyCoCo parity)
 - Iteration cap and photometry convergence fraction (`ITER_GP_MANGLE_MAX_ITERS`, `PHOT_CONVERGENCE_FRAC`)
@@ -360,6 +364,8 @@ From the `Codes/` directory:
 cd "$COCO_PATH/Codes"
 PYTHONPATH=.:helper_scripts python -m unittest discover -s helper_scripts/tests -v
 ```
+
+Tests never write to the real `Outputs/` tree: anything that runs pipeline code writes to a temporary directory. A guard in `helper_scripts/tests/_outputs_guard.py` makes any write under `Outputs/` (or `$COCO_PATH/Outputs/`) raise `PermissionError`, and fails the run at exit if `Outputs/` changed anyway (issue #9). Tests that need AT2017gfo products only read them, and skip if they are missing.
 
 ---
 

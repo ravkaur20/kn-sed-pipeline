@@ -59,6 +59,7 @@ def _build_iter_spec_class(
     mangled_spectra_dir: str,
     gp_runs_dir: str,
     output_dir: str,
+    coco_path: str | None = None,
     filters_dir: Optional[str] = None,
     csp_sne: Sequence[str] | None = None,
     warm_start_config_path: str | None = None,
@@ -73,6 +74,7 @@ def _build_iter_spec_class(
         filters_dir=filters_dir,
         mangled_spectra_dir=mangled_spectra_dir,
         prepare_output_dir=False,
+        raw_photometry_path=pconf.raw_photometry_path(coco_path, snname),
         verbose=verbose,
         DELTA=float(grid_delta if grid_delta is not None else _iter_grid_delta()),
     )
@@ -149,6 +151,7 @@ def run_iter_gp_grid_export_only(
         mangled_spectra_dir=mangled_spectra_dir,
         gp_runs_dir=export_dir,
         output_dir=output_dir,
+        coco_path=coco_path,
         filters_dir=filters_dir,
         csp_sne=csp_sne,
         verbose=verbose,
@@ -225,6 +228,7 @@ def run_iter_gp_fit(
         mangled_spectra_dir=mangled_spectra_dir,
         gp_runs_dir=gp_runs_dir,
         output_dir=output_dir,
+        coco_path=coco_path,
         filters_dir=filters_dir,
         csp_sne=csp_sne,
         warm_start_config_path=warm_start_config_path,
@@ -255,8 +259,7 @@ def run_iter_gp_fit(
     merged = getattr(spec_class, "_twodim_gp_merged", None) or {}
 
     gn = dict(spec_class.grid_norm_info)
-    wls_min = float(np.min(spec_class.grids[0]))
-    wls_max = float(np.max(spec_class.grids[0]))
+    wls_min, wls_max = resolve_gp2dim_module().prediction_log_wavelength_range(spec_class)
     span_wl = max(wls_max - wls_min, 1e-9)
     n_wl = int(getattr(spec_class, "gp_predict_n_wavelength", 300))
     wl_step = float(getattr(spec_class, "gp_predict_wl_step", 0.01))

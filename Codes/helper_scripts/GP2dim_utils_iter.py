@@ -176,14 +176,7 @@ def prepare_training_bundle(
 	yerr = _apply_training_yerr_floors(GP2DIM_Class, y, y_data_nonan_err, stage="compute")
 	n_train = int(y.size)
 
-	wls_min = float(np.min(GP2DIM_Class.grids[0]))
-	wls_max = float(np.max(GP2DIM_Class.grids[0]))
-	_wl_min_a = getattr(GP2DIM_Class, "pipeline_wl_min_a", None)
-	_wl_max_a = getattr(GP2DIM_Class, "pipeline_wl_max_a", None)
-	if _wl_min_a is not None:
-		wls_min = min(wls_min, float(np.log10(float(_wl_min_a))))
-	if _wl_max_a is not None:
-		wls_max = max(wls_max, float(np.log10(float(_wl_max_a))))
+	wls_min, wls_max = _gp.prediction_log_wavelength_range(GP2DIM_Class)
 	span_wl = float(wls_max - wls_min)
 	if span_wl <= 0.0:
 		raise ValueError("prepare_training_bundle: invalid log10 wavelength span.")
