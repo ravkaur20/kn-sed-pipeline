@@ -786,7 +786,18 @@ def run_prescale_pipeline(
 
     for g in groups:
         mode = g.output_mode or default_output_mode
-        paths = [resolve_member_path(_basename_key(m), entries) for m in g.members]
+        # a group may name a spectrum that was dropped from the list (e.g. one
+        # clipped entirely in notebook 0.2); scale the members that are left
+        paths = []
+        for m in g.members:
+            try:
+                paths.append(resolve_member_path(_basename_key(m), entries))
+            except FileNotFoundError:
+                import warnings
+
+                warnings.warn("group %s: %s is not in the spectrum list; skipped" % (g.id, m), stacklevel=1)
+        if not paths:
+            continue
 
         scaled, factors, anchor, pair_links = scale_group_members(
             paths,
