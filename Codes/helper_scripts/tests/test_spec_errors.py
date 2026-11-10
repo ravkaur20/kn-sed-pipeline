@@ -1,10 +1,10 @@
-"""Tests for spec_errors_smooth (notebook 0.3 errors + smoothing)."""
+"""Tests for spec_errors (notebook 0.3 flux uncertainties)."""
 import _bootstrap_paths  # noqa: F401
 import unittest
 
 import numpy as np
 
-import spec_errors_smooth as se  # noqa: E402
+import spec_errors as se  # noqa: E402
 
 
 def _fake_spec(pix_A, sigma=0.05, seed=0, wl0=4000.0, wl1=9000.0, err=True):
@@ -89,54 +89,29 @@ class TestErrorEstimate(unittest.TestCase):
 
 
 class TestReduceOne(unittest.TestCase):
-    def test_end_to_end(self):
-        spec, truth = _fake_spec(0.5, sigma=0.05)
+    def test_output_keeps_every_pixel(self):
+        spec, _ = _fake_spec(0.5, sigma=0.05)
         spec["weight"][4000:4400] = 0           # a clipped region
         res = se.reduce_one(spec, dict(se.DEFAULTS))
-        self.assertLessEqual(res["vexp"], res["vexp_max"])
-        # one point per kernel sigma
-        step = np.median(np.diff(np.log(res["out_wl"])))
-        self.assertAlmostEqual(step, res["vexp"], delta=res["vexp"] * 0.01)
+        # no smoothing or resampling: same pixels, same flux, same weights
+        self.assertEqual(len(res["sigma"]), len(spec["wl"]))
+        np.testing.assert_array_equal(res["spec"]["flux"], spec["flux"])
+        np.testing.assert_array_equal(res["spec"]["weight"], spec["weight"])
+        self.assertTrue(np.all(np.isfinite(res["sigma"])))
         # errors right -> residual/sigma scatter ~ 1
         self.assertAlmostEqual(res["chi_std"], 1.0, delta=0.1)
-        # points mostly inside the clipped region are weight 0
-        lo, hi = spec["wl"][4000], spec["wl"][4399]
-        inside = (res["out_wl"] > lo + 30) & (res["out_wl"] < hi - 30)
-        self.assertTrue(inside.any())
-        self.assertTrue(np.all(res["out_weight"][inside] == 0))
-        # smoothed points follow the truth within ~3 sigma
-        t = np.interp(res["out_wl"], spec["wl"], truth)
-        w = res["out_weight"] > 0
-        pull = (res["out_flux"][w] - t[w]) / res["out_err"][w]
-        self.assertLess(np.median(np.abs(pull)), 2.0)
 
-    def test_manual_vexp_and_kaepora_rule(self):
+    def test_estimate_mode_on_file_with_errors(self):
+        spec, _ = _fake_spec(1.0, sigma=0.05)
+        spec["err"] = spec["err"] * 4.0
+        res = se.reduce_one(spec, dict(se.DEFAULTS, err_mode="estimate"))
+        self.assertAlmostEqual(np.median(res["sigma"]) / 0.05, 1.0, delta=0.07)
+
+    def test_all_clipped_raises(self):
         spec, _ = _fake_spec(1.0)
-        r1 = se.reduce_one(spec, dict(se.DEFAULTS, vexp=0.003))
-        self.assertEqual(r1["vexp"], 0.003)
-        self.assertEqual(r1["width_rule_used"], "manual")
-        r2 = se.reduce_one(spec, dict(se.DEFAULTS, width_rule="kaepora"))
-        self.assertEqual(r2["vexp"], r2["vexp_kaepora"])
-        self.assertTrue(0.001 <= r2["vexp_kaepora"] <= 0.0045)
-
-    def test_knee_finds_bend(self):
-        v = np.geomspace(1e-4, 1e-2, 30)
-        stats = np.where(v < 3e-3, (v / 3e-3) ** -2.5, (v / 3e-3) ** -0.5)
-        k = se.knee_vexp(v, stats)
-        self.assertTrue(2e-3 < k < 5e-3, k)
-
-    def test_knee_falls_back_to_cap(self):
-        v = np.geomspace(1e-4, 1e-2, 30)
-        self.assertEqual(se.knee_vexp(v, v ** -2.5), v[-1])
-
-    def test_cap_rule(self):
-        spec, _ = _fake_spec(1.0)
-        r = se.reduce_one(spec, dict(se.DEFAULTS, width_rule="cap"))
-        self.assertEqual(r["vexp"], r["vexp_max"])
-
-    def test_cap_is_100A_at_red_end(self):
-        spec, _ = _fake_spec(1.0)
-        self.assertAlmostEqual(se.vexp_cap(spec["wl"]) * spec["wl"].max(), 100.0)
+        spec["weight"][:] = 0
+        with self.assertRaises(ValueError):
+            se.reduce_one(spec, dict(se.DEFAULTS))
 
 
 if __name__ == "__main__":

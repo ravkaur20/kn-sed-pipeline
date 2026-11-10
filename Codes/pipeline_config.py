@@ -486,8 +486,14 @@ def band_mjd_ranges_json_path(output_dir: str, snname: str) -> str:
 
 
 ORIGINAL_SPEC_SUBDIR: str = "1_spec_original"
-SMOOTHED_SPEC_SUBDIR: str = "2_spec_smoothed"
-SMOOTHED_SPEC_LIST_SUBDIR: str = "2_spec_lists_smoothed"
+# Output of notebook 0.3: clipped (0.2), unsmoothed spectra with flux_err and a
+# weight column (0 = clipped in 0.2). This is what step 4 reads.
+REDUCED_SPEC_SUBDIR: str = "1.6_spec_errors"
+REDUCED_SPEC_LIST_SUBDIR: str = "1.6_spec_lists_errors"
+# Step 4 input. Set to "2_spec_smoothed" / "2_spec_lists_smoothed" to go back
+# to notebook 0.1's smoothed spectra.
+SMOOTHED_SPEC_SUBDIR: str = REDUCED_SPEC_SUBDIR
+SMOOTHED_SPEC_LIST_SUBDIR: str = REDUCED_SPEC_LIST_SUBDIR
 PRESCALED_SPEC_SUBDIR: str = "2_spec_prescaled"
 PRESCALED_SPEC_LIST_SUBDIR: str = "2_spec_lists_prescaled"
 
