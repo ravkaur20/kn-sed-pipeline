@@ -221,3 +221,41 @@ class TestIterativeDriverSmoke(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPhotometryClosureBandSelection(unittest.TestCase):
+    def test_only_bands_observed_at_the_epoch_are_compared(self):
+        import pandas as pd
+        from unittest import mock
+
+        import iterative_gp_mangle as igm
+
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, "s.dat")
+            with open(path, "w") as fh:
+                fh.write("# wls\tflux\tflux_err\tweight\n")
+                for w in np.arange(5000.0, 7000.0, 10.0):
+                    fh.write("%.1f\t1.0\t0.1\t1\n" % w)
+            n_pix = 200
+            row = {"spec_mjd": 100.0}
+            for b, inrange in (("A", True), ("B", True), ("C", False), ("D", True)):
+                row["%s_fit_log_flux" % b] = np.log10(2.0)
+                row["%s_inrange" % b] = inrange
+            p4m = pd.DataFrame([row])
+            ranges = {
+                "A": {"min_mjd": 90.0, "max_mjd": 110.0},   # observed: compared
+                "B": {"min_mjd": 200.0, "max_mjd": 300.0},  # extrapolated: skipped
+                "C": {"min_mjd": 90.0, "max_mjd": 110.0},   # not in range flag: skipped
+                "D": {"min_mjd": 100.0, "max_mjd": 100.0},  # single epoch: skipped
+            }
+            entry = SpectrumEntry(mjd=100.0, phase=0.0, path=path, basename="s.dat")
+            with mock.patch.object(igm, "load_spec_list", return_value=[entry]), \
+                    mock.patch.object(igm, "band_flux_trapz", return_value=(0, 0, 1.0, 0, 0, 0)) as bft:
+                out = igm.compute_photometry_closure(
+                    {"s.dat": path}, {"s.dat": np.zeros(n_pix)}, p4m, ["A", "B", "C", "D"],
+                    ranges, filter_path=td, snname="TESTSN",
+                )
+            self.assertEqual(bft.call_count, 1)
+            self.assertEqual(bft.call_args[0][3], "A")
+            self.assertEqual(out["n_phot_points"], 1)
+            self.assertAlmostEqual(out["median_rel_phot_err"], 0.5)

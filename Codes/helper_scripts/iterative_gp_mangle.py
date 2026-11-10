@@ -168,12 +168,19 @@ def compute_photometry_closure(
             mjd_key = str(filt)
             if mjd_key not in filter_mjd_dict:
                 continue
+            # same band selection as mangling: only epochs inside the band's
+            # observed MJD range, so extrapolated light-curve fits are not used
             band_range = filter_mjd_dict[mjd_key]
-            if not (band_range.get("min", -1e9) <= mjd <= band_range.get("max", 1e9)):
+            if band_range["min_mjd"] == band_range["max_mjd"]:
+                continue
+            if not (band_range["min_mjd"] <= mjd <= band_range["max_mjd"]):
                 continue
             if photometry_target == "gp_fit":
                 target_col = "%s_fit_log_flux" % filt
                 if target_col not in row.index:
+                    continue
+                inrange_col = "%s_inrange" % filt
+                if inrange_col in row.index and not bool(row[inrange_col]):
                     continue
                 target_log = float(row[target_col])
                 if not np.isfinite(target_log):
