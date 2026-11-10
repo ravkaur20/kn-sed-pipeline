@@ -196,13 +196,49 @@ class PairScaleResult:
         }
 
 
-def load_spectrum_array(path: str) -> np.ndarray:
-    """Load spectrum as structured array (wls, flux, fluxerr).
+SPEC_W_DTYPE = np.dtype([("wls", "<f8"), ("flux", "<f8"), ("fluxerr", "<f8"), ("weight", "<f8")])
 
-    Supports smoothed 3-column files and original 4-column XSHooter exports.
+
+def spec_weight(spec: np.ndarray) -> np.ndarray:
+    """Per-pixel weight (1 = data, 0 = clipped); all ones if the array has none."""
+    if spec.dtype.names and "weight" in spec.dtype.names:
+        return np.asarray(spec["weight"], dtype=float)
+    return np.ones(len(spec), dtype=float)
+
+
+def load_spectrum_array(path: str) -> np.ndarray:
+    """Load spectrum as structured array (wls, flux, fluxerr, weight).
+
+    Supports 0.3 reduced files (``wls flux flux_err weight``; weight 0 =
+    clipped in 0.2), smoothed 3-column files and original 4-column XSHooter
+    exports. Files without a weight column get weight 1 everywhere.
+
+    Reduced files keep pixels with flux <= 0 (unsmoothed noisy pixels;
+    dropping them would bias the flux up). Older 3-column files keep the
+    previous behaviour and drop them.
     """
     with open(path, encoding="utf-8") as fh:
         header = fh.readline().strip().lower()
+    if "weight" in header:
+        raw = np.genfromtxt(
+            path,
+            dtype=None,
+            encoding="utf-8",
+            names=["wls", "flux", "fluxerr", "weight"],
+            comments="#",
+        )
+        if raw.ndim == 0:
+            raw = np.array([raw])
+        mask = (
+            np.isfinite(raw["wls"])
+            & np.isfinite(raw["flux"])
+            & np.isfinite(raw["fluxerr"])
+            & (raw["fluxerr"] > 0.0)
+        )
+        out = np.empty(int(mask.sum()), dtype=SPEC_W_DTYPE)
+        for k in SPEC_W_DTYPE.names:
+            out[k] = raw[k][mask]
+        return out
     if "tell" in header or "flux_not" in header:
         raw = np.genfromtxt(
             path,
@@ -230,19 +266,25 @@ def load_spectrum_array(path: str) -> np.ndarray:
         & np.isfinite(err)
         & (raw["flux"] > 0.0)
     )
-    out = np.empty(int(mask.sum()), dtype=[("wls", "<f8"), ("flux", "<f8"), ("fluxerr", "<f8")])
+    out = np.empty(int(mask.sum()), dtype=SPEC_W_DTYPE)
     out["wls"] = raw["wls"][mask]
     out["flux"] = raw["flux"][mask]
     out["fluxerr"] = err[mask]
+    out["weight"] = 1.0
     return out
 
 
 def save_spectrum_array(path: str, spec: np.ndarray) -> None:
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     with open(path, "w", encoding="utf-8") as fh:
-        fh.write("#wls\tflux\tfluxerr\n")
-        for row in spec:
-            fh.write("%E\t%E\t%E\n" % (row["wls"], row["flux"], row["fluxerr"]))
+        if spec.dtype.names and "weight" in spec.dtype.names:
+            fh.write("#wls\tflux\tfluxerr\tweight\n")
+            for row in spec:
+                fh.write("%E\t%E\t%E\t%d\n" % (row["wls"], row["flux"], row["fluxerr"], row["weight"]))
+        else:
+            fh.write("#wls\tflux\tfluxerr\n")
+            for row in spec:
+                fh.write("%E\t%E\t%E\n" % (row["wls"], row["flux"], row["fluxerr"]))
 
 
 def overlap_scale_factor_wls(
@@ -250,8 +292,17 @@ def overlap_scale_factor_wls(
     arm: np.ndarray,
     *,
     wl_tol_a: float = 1.0,
+    bin_a: float | None = None,
 ) -> tuple[float, int]:
-    """WLS linear scale ``m`` so ``m * arm ≈ ref`` on overlapping valid pixels."""
+    """WLS linear scale ``m`` so ``m * arm ≈ ref`` in their overlap.
+
+    Both arms are first inverse-variance binned (``bin_a`` Angstrom bins,
+    weight-1 pixels only, linear flux). Fitting raw noisy pixels would bias
+    ``m`` low (noise in ``arm`` inflates sum(arm^2)). Returns ``(m, n_bins)``.
+    """
+    import pipeline_config as pconf
+    from spec_binning import ivar_bin
+
     w_ref = ref["wls"]
     w_arm = arm["wls"]
     lo = max(float(np.min(w_ref)), float(np.min(w_arm)))
@@ -259,27 +310,21 @@ def overlap_scale_factor_wls(
     if hi <= lo:
         return 1.0, 0
 
-    grid = np.linspace(lo, hi, max(50, min(len(ref), len(arm))))
-    f_ref = np.interp(grid, w_ref, ref["flux"])
-    e_ref = np.interp(grid, w_ref, ref["fluxerr"])
-    f_arm = np.interp(grid, w_arm, arm["flux"])
-    e_arm = np.interp(grid, w_arm, arm["fluxerr"])
+    width = float(bin_a if bin_a is not None else getattr(pconf, "SPEC_SCALE_OVERLAP_BIN_A", 30.0))
+    n_bins = max(1, int(round((hi - lo) / width)))
+    edges = np.linspace(lo, hi, n_bins + 1)
+    br = ivar_bin(w_ref, ref["flux"], ref["fluxerr"], spec_weight(ref), edges)
+    ba = ivar_bin(w_arm, arm["flux"], arm["fluxerr"], spec_weight(arm), edges)
+    f_ref, f_arm, e_arm = br["flux"], ba["flux"], ba["err"]
 
-    good = (
-        np.isfinite(f_ref)
-        & np.isfinite(f_arm)
-        & (f_ref > 0)
-        & (f_arm > 0)
-        & np.isfinite(e_ref)
-        & np.isfinite(e_arm)
-    )
+    good = np.isfinite(f_ref) & np.isfinite(f_arm) & np.isfinite(e_arm) & (e_arm > 0)
     if not np.any(good):
         return 1.0, 0
 
     w = 1.0 / np.maximum(e_arm[good] ** 2, 1e-60)
     num = float(np.sum(w * f_ref[good] * f_arm[good]))
     den = float(np.sum(w * f_arm[good] ** 2))
-    if den <= 0.0:
+    if den <= 0.0 or num <= 0.0:
         return 1.0, int(good.sum())
     return num / den, int(good.sum())
 
@@ -300,7 +345,10 @@ def _join_edge_windows(
     seam_half_width_a: float,
     edge_n_pix: int,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Flux windows at the join: ref side and arm side (for ``m * arm ≈ ref``)."""
+    """Flux windows at the join: ref side and arm side (for ``m * arm ≈ ref``).
+    Only weight-1 pixels are used."""
+    ref = ref[spec_weight(ref) > 0]
+    arm = arm[spec_weight(arm) > 0]
     if float(np.median(ref["wls"])) <= float(np.median(arm["wls"])):
         ref_max = float(np.max(ref["wls"]))
         arm_min = float(np.min(arm["wls"]))
@@ -434,12 +482,16 @@ def apply_flux_scale(spec: np.ndarray, factor: float) -> np.ndarray:
 
 
 def median_snr(spec: np.ndarray) -> float:
+    """Median S/N per Angstrom over weight-1 pixels (per-pixel S/N divided by
+    sqrt(pixel size), so arms with different pixel sizes compare fairly)."""
+    spec = spec[spec_weight(spec) > 0]
     with np.errstate(divide="ignore", invalid="ignore"):
         snr = spec["flux"] / np.maximum(spec["fluxerr"], 1e-99)
     snr = snr[np.isfinite(snr) & (snr > 0)]
     if snr.size == 0:
         return 0.0
-    return float(np.median(snr))
+    pix = float(np.median(np.diff(np.sort(spec["wls"])))) if len(spec) > 1 else 1.0
+    return float(np.median(snr)) / np.sqrt(max(pix, 1e-6))
 
 
 def _bridge_neighbor(
@@ -602,7 +654,10 @@ def merge_spectra_concat(
             f = (1 - t) * merged["flux"][i] + t * merged["flux"][i + 1]
             e = (1 - t) * merged["fluxerr"][i] + t * merged["fluxerr"][i + 1]
             # append — caller may re-sort; for simplicity rebuild once
-            extra = np.array(list(zip(mid_w, f, e)), dtype=merged.dtype)
+            extra = np.zeros(len(mid_w), dtype=merged.dtype)
+            extra["wls"], extra["flux"], extra["fluxerr"] = mid_w, f, e
+            if "weight" in merged.dtype.names:
+                extra["weight"] = 0.0  # interpolated, not data
             merged = np.concatenate([merged, extra])
     order = np.argsort(merged["wls"])
     return merged[order]

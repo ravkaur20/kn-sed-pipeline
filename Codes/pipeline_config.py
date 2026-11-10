@@ -502,6 +502,7 @@ SPEC_SCALE_MERGE_GAP_POLICY: str = "linear_bridge"
 SPEC_SCALE_GAP_LOG10: float = 0.005
 SPEC_SCALE_SAME_TIME_MINUTES: float = 5.0
 SPEC_SCALE_OVERLAP_WL_TOL_A: float = 1.0
+SPEC_SCALE_OVERLAP_BIN_A: float = 30.0  # arm-overlap fit uses inverse-variance bins this wide (Å)
 SPEC_SCALE_SAVE_DIAGNOSTICS: bool = True
 SPEC_SCALE_DIAG_SUBDIR: str = "spec_scale_diagnostics"
 SPEC_SCALE_CHAIN_MODE: bool = False
