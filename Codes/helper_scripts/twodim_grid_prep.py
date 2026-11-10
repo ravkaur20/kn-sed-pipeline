@@ -375,8 +375,13 @@ have the right decimals.""")
         mjd =[]
         
         DELTA= self.DELTA#70.
+        binned_flags = []
         for f in self.mangledspec_list:
             spec = self.load_mangledfile(f)
+            # step 5 / step 6 write reduced spectra already binned onto GP
+            # grid nodes (header tag); those are copied, not interpolated
+            with open(self.mangled_file_path + f, encoding="utf-8") as _fh:
+                binned_flags.append("gp_grid_binned" in _fh.readline())
             if self.verbose: print (f, len(spec))
             #smoothed_wls, smoothed_flux, smoothed_flux_err = \
             #        self.running_mean_std(spec['wls'], spec['flux'], delta_fix=DELTA)
@@ -406,6 +411,19 @@ have the right decimals.""")
         grid_wls = np.round(
             np.arange(min_log_wls, max_log_wls + step_log, step_log), 8
         )
+        if any(binned_flags):
+            # rebuild the regular grid the binned nodes came from
+            nodes = np.unique(np.round(np.concatenate(
+                [np.log10(np.clip(np.asarray(w, dtype=float), 1.0, None))
+                 for w, b in zip(ungrid_data_wls, binned_flags) if b]), 8))
+            d = np.diff(nodes)
+            if np.any(d > 1e-7):
+                # average all one-step gaps: files store wavelengths to ~7 digits
+                d_min = float(np.min(d[d > 1e-7]))
+                step_log = float(np.mean(d[(d > 1e-7) & (d < 1.5 * d_min)]))
+            first = nodes[0] - step_log * int(round((nodes[0] - min_log_wls) / step_log))
+            grid_wls = np.round(first + step_log * np.arange(
+                int(round((max_log_wls - first) / step_log)) + 1), 8)
         #rav changing this to try
         grid_mjd = np.array(mjd)
         #time_step = 0.1
@@ -434,12 +452,27 @@ have the right decimals.""")
             minwls = np.nanmin(log_spec_wls[ok])
             maxwls = np.nanmax(log_spec_wls[ok])
             data_mask = (grid_wls >= minwls) & (grid_wls <= maxwls)
-            flux_interp = np.interp(
-                grid_wls[data_mask], log_spec_wls, ungrid_data_flux[ii]
-            )
-            flux_interp_err = np.interp(
-                grid_wls[data_mask], log_spec_wls, ungrid_data_fluxerr[ii]
-            )
+            if binned_flags[ii]:
+                # one row per node: copy onto the nearest grid node; nodes
+                # with no row (clipped / empty bins) stay NaN
+                k = np.round((log_spec_wls - grid_wls[0]) / step_log).astype(int)
+                on = (k >= 0) & (k < len(grid_wls))
+                col_f = np.full(len(grid_wls), np.nan)
+                col_e = np.full(len(grid_wls), np.nan)
+                col_f[k[on]] = np.asarray(ungrid_data_flux[ii], dtype=float)[on]
+                col_e[k[on]] = np.asarray(ungrid_data_fluxerr[ii], dtype=float)[on]
+                # every node is either a row or NaN; no span cut needed (and a
+                # span cut can drop end nodes to float rounding)
+                data_mask = np.ones(len(grid_wls), dtype=bool)
+                flux_interp = col_f[data_mask]
+                flux_interp_err = col_e[data_mask]
+            else:
+                flux_interp = np.interp(
+                    grid_wls[data_mask], log_spec_wls, ungrid_data_flux[ii]
+                )
+                flux_interp_err = np.interp(
+                    grid_wls[data_mask], log_spec_wls, ungrid_data_fluxerr[ii]
+                )
             if do_plot and plt is not None and fig is not None:
                 plt.plot(
                     lin_w,

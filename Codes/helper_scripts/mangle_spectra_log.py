@@ -44,7 +44,27 @@ def calc_lam_eff(wls: np.ndarray, transmission: np.ndarray, flux: np.ndarray) ->
 
 
 def load_linear_spectrum(path: str) -> np.ndarray:
-    """Load ``wls, flux, fluxerr`` (linear Å and linear Fλ); drop NaN/nonpositive flux."""
+    """Load ``wls, flux, fluxerr`` (linear Å and linear Fλ).
+
+    Reduced (unsmoothed) spectra from notebook 0.3, carried through step 4,
+    have a ``weight`` column (0 = clipped). Those keep pixels with flux <= 0,
+    since dropping them would bias noisy spectra up. Older 3-column files drop
+    NaN and nonpositive flux, as before.
+    """
+    with open(path, encoding="utf-8") as fh:
+        header = fh.readline().strip().lower()
+    if "weight" in header:
+        raw = np.genfromtxt(
+            path, dtype=float, encoding="utf-8",
+            names=["wls", "flux", "fluxerr", "weight"],
+        )
+        mask = (
+            np.isfinite(raw["wls"])
+            & np.isfinite(raw["flux"])
+            & np.isfinite(raw["fluxerr"])
+            & (raw["fluxerr"] > 0.0)
+        )
+        return raw[mask]
     raw = np.genfromtxt(
         path, dtype=None, encoding="utf-8", names=["wls", "flux", "fluxerr"]
     )
@@ -80,16 +100,28 @@ def load_mangled_spectrum(path: str) -> tuple[np.ndarray, Optional[np.ndarray]]:
     return log_spec, None
 
 
+GP_GRID_BINNED_TAG = "gp_grid_binned"
+
+
 def save_mangled_spectrum(
     path: str,
     wls_linear: np.ndarray,
     log_flux: np.ndarray,
     log_flux_err: np.ndarray,
     mangling_mask: np.ndarray,
+    *,
+    gp_grid_binned: bool = False,
 ) -> None:
+    """Write a mangled spectrum (linear Å, log10 flux, log10 error, mask).
+
+    ``gp_grid_binned`` marks files whose rows are GP grid nodes (inverse-
+    variance bins of unsmoothed pixels); step 6's grid prep copies those
+    straight onto the grid instead of interpolating.
+    """
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     with open(path, "w", encoding="utf-8") as fout:
-        fout.write("#wls\tflux\tfluxerr\tmangling_mask\n")
+        fout.write("#wls\tflux\tfluxerr\tmangling_mask%s\n"
+                   % ("\t" + GP_GRID_BINNED_TAG if gp_grid_binned else ""))
         for w, f, fe, mm in zip(wls_linear, log_flux, log_flux_err, mangling_mask):
             fout.write("%E\t%E\t%E\t%E\n" % (w, f, fe, mm))
 
@@ -139,6 +171,18 @@ def _resolve_filter_path(filter_path: str, filter_name: str, snname: str, csp_sn
     return cands[0]
 
 
+def _trapezoid_widths(x: np.ndarray) -> np.ndarray:
+    """Per-point widths so that sum(y * widths) == trapezoid(y, x)."""
+    x = np.asarray(x, dtype=float)
+    if x.size < 2:
+        return np.zeros_like(x)
+    d = np.empty_like(x)
+    d[1:-1] = 0.5 * (x[2:] - x[:-2])
+    d[0] = 0.5 * (x[1] - x[0])
+    d[-1] = 0.5 * (x[-1] - x[-2])
+    return d
+
+
 def band_flux_trapz(
     spec_wls: np.ndarray,
     spec_flux: np.ndarray,
@@ -148,9 +192,24 @@ def band_flux_trapz(
     filter_path: str,
     snname: str = "",
     csp_sne: Sequence[str] = (),
+    spec_weight: Optional[np.ndarray] = None,
+    max_clipped_frac: Optional[float] = None,
 ) -> tuple[float, float, float, float, float, float]:
-    """Trapezoid synthetic photometry (linear wls / linear flux)."""
-    from scipy import integrate, interpolate
+    """Trapezoid synthetic photometry (linear wls / linear flux).
+
+    The mean flux is sum(a_i f_i) / sum(a_i) with a_i = T(l_i) l_i dl_i
+    (identical to the trapezoid integral). Its error treats pixels as
+    independent: sqrt(sum((a_i s_i)^2)) / sum(a_i). (This used to be
+    sqrt(trapezoid((T l s)^2)) / trapezoid(T l), which is off by a factor
+    sqrt(dl).)
+
+    With ``spec_weight`` (0 = clipped pixel): if more than
+    ``max_clipped_frac`` (default ``MANGLE_MAX_CLIPPED_FRAC``) of the band's
+    weight sum(a_i) is on clipped pixels the synthetic flux is NaN (callers
+    skip the filter); otherwise its error is divided by the unclipped
+    fraction.
+    """
+    from scipy import interpolate
 
     filt_path = _resolve_filter_path(filter_path, filter_name, snname, csp_sne)
     filt = np.genfromtxt(
@@ -166,14 +225,96 @@ def band_flux_trapz(
     ferr_c = np.asarray(spec_fluxerr, dtype=float)[cut]
 
     filt_interp = interpolate.interp1d(filt["wls"], filt["flux"], kind="linear")(wls_c)
-    filt_xlam = filt_interp * wls_c
     lam_eff = calc_lam_eff(wls_c, filt_interp, flux_c)
-    denom = integrate.trapezoid(filt_xlam, wls_c)
-    raw_phot = integrate.trapezoid(filt_xlam * flux_c, wls_c) / denom
-    raw_phot_err = (
-        integrate.trapezoid((filt_xlam * ferr_c) ** 2, wls_c) ** 0.5 / denom
-    )
-    return lam_avg, lam_eff, float(raw_phot), float(raw_phot_err), min_wls, max_wls
+    a = filt_interp * wls_c * _trapezoid_widths(wls_c)
+    denom = float(np.sum(a))
+    if denom <= 0.0:
+        return lam_avg, lam_eff, float("nan"), float("nan"), min_wls, max_wls
+    raw_phot = float(np.sum(a * flux_c)) / denom
+    raw_phot_err = float(np.sqrt(np.sum((a * ferr_c) ** 2))) / denom
+
+    if spec_weight is not None:
+        if max_clipped_frac is None:
+            import pipeline_config as _pc
+
+            max_clipped_frac = float(getattr(_pc, "MANGLE_MAX_CLIPPED_FRAC", 0.5))
+        w_c = np.asarray(spec_weight, dtype=float)[cut]
+        clipped = float(np.sum(a * (w_c <= 0))) / denom
+        if clipped > max_clipped_frac:
+            raw_phot = float("nan")
+        elif clipped > 0.0:
+            raw_phot_err /= 1.0 - clipped
+    return lam_avg, lam_eff, raw_phot, raw_phot_err, min_wls, max_wls
+
+
+def spec_weights_or_none(spec: np.ndarray) -> Optional[np.ndarray]:
+    """The ``weight`` column of a reduced spectrum, or None for older files."""
+    if spec.dtype.names and "weight" in spec.dtype.names:
+        return np.asarray(spec["weight"], dtype=float)
+    return None
+
+
+def gp_grid_for_spectra(specs: Sequence[np.ndarray], delta_a: Optional[float] = None) -> np.ndarray:
+    """The GP log10 wavelength grid spanning all weight-1 pixels of ``specs``.
+
+    Step 5 and step 6's re-mangle both build it from the same spectrum list,
+    so every binned spectrum lands on the same nodes.
+    """
+    import pipeline_config as _pc
+    from spec_binning import gp_log_grid
+
+    delta = float(delta_a if delta_a is not None else getattr(_pc, "ITER_GP_GRID_DELTA", 30.0))
+    lo, hi = np.inf, -np.inf
+    for sp in specs:
+        w = spec_weights_or_none(sp)
+        wl = np.asarray(sp["wls"], dtype=float)
+        wl = wl if w is None else wl[w > 0]
+        if wl.size:
+            lo, hi = min(lo, float(wl.min())), max(hi, float(wl.max()))
+    return gp_log_grid(lo, hi, delta)
+
+
+def bin_mangled_to_gp_grid(
+    wls: np.ndarray,
+    flux: np.ndarray,
+    fluxerr: np.ndarray,
+    weight: Optional[np.ndarray],
+    mask_log: np.ndarray,
+    mask_std_log: np.ndarray,
+    grid_log10: np.ndarray,
+    *,
+    min_snr: Optional[float] = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Apply the mangling mask in linear flux, bin onto the GP grid, then log.
+
+    Mangled pixels f * 10**mask (errors scaled the same way) are inverse-
+    variance averaged per grid node (weight-1 pixels only; see
+    ``spec_binning``). Nodes that are empty, have flux <= 0, or S/N below
+    ``min_snr`` (default ``MANGLE_BIN_MIN_SNR``) are dropped.
+
+    Returns ``(node_wls_linear, log10_flux, log10_err, mask_at_nodes)``;
+    log10_err combines the binned flux error and the mask's GP std.
+    """
+    from spec_binning import bin_onto_log_grid
+
+    if min_snr is None:
+        import pipeline_config as _pc
+
+        min_snr = float(getattr(_pc, "MANGLE_BIN_MIN_SNR", 3.0))
+    wls = np.asarray(wls, dtype=float)
+    scale = np.power(10.0, np.asarray(mask_log, dtype=float))
+    b = bin_onto_log_grid(wls, np.asarray(flux, float) * scale,
+                          np.asarray(fluxerr, float) * scale, weight, grid_log10)
+    F, E = b["flux"], b["err"]
+    with np.errstate(invalid="ignore", divide="ignore"):
+        keep = np.isfinite(F) & np.isfinite(E) & (F > 0) & (F / E >= min_snr)
+    nodes = np.asarray(grid_log10, dtype=float)[keep]
+    logw = np.log10(wls)
+    m_node = np.interp(nodes, logw, np.asarray(mask_log, dtype=float))
+    s_node = np.interp(nodes, logw, np.asarray(mask_std_log, dtype=float))
+    log_f = np.log10(F[keep])
+    log_e = np.sqrt(s_node ** 2 + (E[keep] / (F[keep] * np.log(10.0))) ** 2)
+    return np.power(10.0, nodes), log_f, log_e, m_node
 
 
 def _mangle_gp_kernel_length(norm_wls: float, kernel_divide: int) -> float:
@@ -198,10 +339,17 @@ def compute_mangling_mask(
     photometry_target: str = "gp_fit",
     kernel_divide: int = 800,
     min_gp_metric: float = 0.09,
+    gp_grid_log10: Optional[np.ndarray] = None,
 ) -> Optional[tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, Any]]]:
     """Fit wavelength-dependent log-space mangling mask (NB5 logic).
 
     Returns ``(mangling_mask, log_mangled_flux, log_mangled_err, meta)`` or ``None``.
+
+    For a reduced spectrum (has a ``weight`` column) and a ``gp_grid_log10``,
+    the mangled spectrum is binned onto the GP grid in linear flux before the
+    log (see ``bin_mangled_to_gp_grid``): the returned arrays are per node and
+    ``meta["out_wls"]`` holds the node wavelengths. Otherwise they are per
+    pixel, as before.
     """
     from scipy import optimize
 
@@ -223,6 +371,7 @@ def compute_mangling_mask(
     wls = np.asarray(raw_spec["wls"], dtype=float)
     flux = np.asarray(raw_spec["flux"], dtype=float)
     fluxerr = np.asarray(raw_spec["fluxerr"], dtype=float)
+    weight = spec_weights_or_none(raw_spec)
 
     for filt in avail_filters:
         if filt not in filter_mjd_dict:
@@ -243,9 +392,10 @@ def compute_mangling_mask(
             )
 
         lam_avg, lam_eff, raw_phot, raw_phot_err, min_wls, max_wls = band_flux_trapz(
-            wls, flux, fluxerr, filt, filter_path=filter_path, snname=snname, csp_sne=csp_sne
+            wls, flux, fluxerr, filt, filter_path=filter_path, snname=snname, csp_sne=csp_sne,
+            spec_weight=weight,
         )
-        if raw_phot <= 0.0:
+        if not np.isfinite(raw_phot) or raw_phot <= 0.0:
             continue
         condition = (max_wls > np.min(wls)) & (min_wls < np.max(wls)) & (raw_phot > 0.0)
         if not in_mjd or not condition:
@@ -307,16 +457,23 @@ def compute_mangling_mask(
         std_full_log = std_log
 
     mangling_mask = mu_full_log + norm_diff
-    raw_log_flux = np.log10(np.clip(flux, 1e-30, None))
-    mangled_log = raw_log_flux + mangling_mask
-    mangled_log_err = np.sqrt(
-        std_full_log ** 2 + (fluxerr / (flux * np.log(10.0))) ** 2
-    )
     meta = {
         "used_filters": used_filters,
         "norm_diff": norm_diff,
         "n_filters": len(used_filters),
     }
+    if gp_grid_log10 is not None and weight is not None:
+        node_wls, log_f, log_e, m_node = bin_mangled_to_gp_grid(
+            wls, flux, fluxerr, weight, mangling_mask, std_full_log, gp_grid_log10
+        )
+        meta["out_wls"] = node_wls
+        meta["gp_grid_binned"] = True
+        return m_node, log_f, log_e, meta
+    raw_log_flux = np.log10(np.clip(flux, 1e-30, None))
+    mangled_log = raw_log_flux + mangling_mask
+    mangled_log_err = np.sqrt(
+        std_full_log ** 2 + (fluxerr / (flux * np.log(10.0))) ** 2
+    )
     return mangling_mask, mangled_log, mangled_log_err, meta
 
 
@@ -332,6 +489,7 @@ def _collect_mangle_constraints(
     snname: str = "",
     csp_sne: Sequence[str] = (),
     photometry_target: str = "gp_fit",
+    weight: Optional[np.ndarray] = None,
 ) -> Optional[tuple[np.ndarray, np.ndarray, np.ndarray, list[str]]]:
     """Return ``(log_diffs, log_diffs_err, log_wls_eff, used_filters)`` or ``None``."""
     spec_mjd = float(phot4mangling_row["spec_mjd"])
@@ -363,9 +521,10 @@ def _collect_mangle_constraints(
             )
 
         _la, lam_eff, raw_phot, raw_phot_err, min_wls, max_wls = band_flux_trapz(
-            wls, flux, fluxerr, filt, filter_path=filter_path, snname=snname, csp_sne=csp_sne
+            wls, flux, fluxerr, filt, filter_path=filter_path, snname=snname, csp_sne=csp_sne,
+            spec_weight=weight,
         )
-        if raw_phot <= 0.0:
+        if not np.isfinite(raw_phot) or raw_phot <= 0.0:
             continue
         condition = (max_wls > np.min(wls)) & (min_wls < np.max(wls)) & (raw_phot > 0.0)
         if not in_mjd or not condition:
@@ -510,11 +669,18 @@ def stitch_arm_spectrum_for_filter(
     names_ordered: Sequence[str],
     fmin: float,
     fmax: float,
-) -> Optional[tuple[np.ndarray, np.ndarray, np.ndarray]]:
-    """Concatenate prescaled/demangled bins from multiple arms within a filter band."""
+    *,
+    with_weight: bool = False,
+) -> Optional[tuple[np.ndarray, ...]]:
+    """Concatenate prescaled/demangled bins from multiple arms within a filter band.
+
+    Returns ``(wls, flux, err)``, plus ``weight`` (1 where an arm has none)
+    when ``with_weight``.
+    """
     wls_parts: list[np.ndarray] = []
     flux_parts: list[np.ndarray] = []
     err_parts: list[np.ndarray] = []
+    w_parts: list[np.ndarray] = []
     for name in names_ordered:
         if name not in member_specs:
             continue
@@ -526,12 +692,16 @@ def stitch_arm_spectrum_for_filter(
         wls_parts.append(w[cut])
         flux_parts.append(np.asarray(spec["flux"], dtype=float)[cut])
         err_parts.append(np.asarray(spec["fluxerr"], dtype=float)[cut])
+        w = spec_weights_or_none(spec)
+        w_parts.append(np.ones(int(cut.sum())) if w is None else w[cut])
     if not wls_parts:
         return None
     wls = np.concatenate(wls_parts)
     flux = np.concatenate(flux_parts)
     err = np.concatenate(err_parts)
     order = np.argsort(wls)
+    if with_weight:
+        return wls[order], flux[order], err[order], np.concatenate(w_parts)[order]
     return wls[order], flux[order], err[order]
 
 
@@ -547,6 +717,7 @@ def _single_filter_constraint(
     snname: str = "",
     csp_sne: Sequence[str] = (),
     photometry_target: str = "gp_fit",
+    weight: Optional[np.ndarray] = None,
 ) -> Optional[tuple[float, float, float]]:
     c = _collect_mangle_constraints(
         wls,
@@ -559,6 +730,7 @@ def _single_filter_constraint(
         snname=snname,
         csp_sne=csp_sne,
         photometry_target=photometry_target,
+        weight=weight,
     )
     if c is None:
         return None
@@ -634,7 +806,7 @@ def _bundle_constraint_for_filter(
         out = _single_filter_constraint(
             wls, flux, fluxerr, row, filt, filter_mjd_dict,
             filter_path=filter_path, snname=snname, csp_sne=csp_sne,
-            photometry_target=photometry_target,
+            photometry_target=photometry_target, weight=spec_weights_or_none(spec),
         )
         if out is None:
             continue
@@ -654,17 +826,17 @@ def _bundle_constraint_for_filter(
     )
     if use_stitch:
         stitched = stitch_arm_spectrum_for_filter(
-            member_specs, names_ordered, fmin, fmax
+            member_specs, names_ordered, fmin, fmax, with_weight=True
         )
         if stitched is not None:
-            sw, sf, se = stitched
+            sw, sf, se, sweight = stitched
             ref_name = overlapping[0][0]
             mjd = float(member_mjd[ref_name]) if member_mjd and ref_name in member_mjd else float(sw[0])
             row = _phot_row_for_mjd(phot4mangling, mjd)
             out = _single_filter_constraint(
                 sw, sf, se, row, filt, filter_mjd_dict,
                 filter_path=filter_path, snname=snname, csp_sne=csp_sne,
-                photometry_target=photometry_target,
+                photometry_target=photometry_target, weight=sweight,
             )
             if out is not None:
                 d, e, wl = out
@@ -713,11 +885,14 @@ def compute_mangling_mask_bundle(
     stitch_synphot: Optional[bool] = None,
     kernel_divide: int = 800,
     min_gp_metric: float = 0.09,
+    gp_grid_log10: Optional[np.ndarray] = None,
 ) -> Optional[tuple[dict[str, np.ndarray], dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]], dict[str, Any]]]:
     """One shared mangling mask per exposure group; applied per arm.
 
     Returns ``(masks_by_name, mangled_by_name, meta)`` where ``mangled_by_name[name]`` is
-    ``(log_mangled_flux, log_mangled_err, linear_wls)``.
+    ``(log_mangled_flux, log_mangled_err, linear_wls)``. Reduced arms (with a
+    ``weight`` column) are binned onto ``gp_grid_log10`` when it is given, so
+    their arrays (and mask) are per GP node.
     """
     if len(member_specs) < 1:
         return None
@@ -798,6 +973,14 @@ def compute_mangling_mask_bundle(
         fluxerr = np.asarray(spec["fluxerr"], dtype=float)
         m = np.interp(np.log10(wls), np.log10(fit_wls), mask_fit)
         s = np.interp(np.log10(wls), np.log10(fit_wls), std_fit)
+        weight = spec_weights_or_none(spec)
+        if gp_grid_log10 is not None and weight is not None:
+            node_wls, log_f, log_e, m_node = bin_mangled_to_gp_grid(
+                wls, flux, fluxerr, weight, m, s, gp_grid_log10
+            )
+            masks[name] = m_node
+            mangled[name] = (log_f, log_e, node_wls)
+            continue
         masks[name] = m
         raw_log = np.log10(np.clip(flux, 1e-30, None))
         mangled_log = raw_log + m
@@ -811,6 +994,7 @@ def compute_mangling_mask_bundle(
         "bundle_mode": True,
         "use_gp_wavelength_grid": bool(use_gp_wavelength_grid),
         "stitch_synphot": bool(stitch_synphot),
+        "gp_grid_binned": bool(gp_grid_log10 is not None),
         **fit_meta,
     }
     return masks, mangled, meta
@@ -925,6 +1109,14 @@ def run_mangle_pipeline(
 
     mangled_dir = os.path.join(out_root, snname, "mangled_spectra")
     os.makedirs(mangled_dir, exist_ok=True)
+    # Reduced (unsmoothed, weighted) spectra are binned onto the 2D GP grid
+    # before the log; older smoothed spectra stay per pixel.
+    all_specs = [load_linear_spectrum(e.path) for e in entries]
+    gp_grid = (
+        gp_grid_for_spectra(all_specs)
+        if any(spec_weights_or_none(sp) is not None for sp in all_specs)
+        else None
+    )
 
     phot_path = os.path.join(out_root, snname, "fitted_phot4mangling_%s.dat" % snname)
     phot4mangling = pd.read_csv(phot_path, sep="\t")
@@ -1010,6 +1202,7 @@ def run_mangle_pipeline(
             csp_sne=csp_sne,
             photometry_target=pt,
             kernel_divide=kd,
+            gp_grid_log10=gp_grid,
         )
         if out is None:
             _record_mangle_failure(entry, "no_phot_constraints")
@@ -1017,10 +1210,11 @@ def run_mangle_pipeline(
         mask, log_f, log_e, meta = out
         save_mangled_spectrum(
             os.path.join(mangled_dir, _mangled_output_basename(entry.mjd)),
-            spec["wls"],
+            meta.pop("out_wls", spec["wls"]),
             log_f,
             log_e,
             mask,
+            gp_grid_binned=bool(meta.get("gp_grid_binned")),
         )
         if save_epoch_plots:
             try:
@@ -1063,12 +1257,19 @@ def run_mangle_pipeline(
             merge_order=next((g.merge_order for g in groups if g.id == gid), None),
             use_gp_wavelength_grid=False,
             kernel_divide=kd,
+            gp_grid_log10=gp_grid,
         )
         if out is None:
             return None
         masks, mangled, meta = out
         merge_order = next((g.merge_order for g in groups if g.id == gid), [])
-        prescaled_linear = {n: {"wls": specs[n]["wls"], "flux": specs[n]["flux"]} for n in specs}
+        prescaled_linear = {
+            n: {
+                "wls": specs[n]["wls"] if spec_weights_or_none(specs[n]) is None else specs[n]["wls"][specs[n]["weight"] > 0],
+                "flux": specs[n]["flux"] if spec_weights_or_none(specs[n]) is None else specs[n]["flux"][specs[n]["weight"] > 0],
+            }
+            for n in specs
+        }
         mangled_linear = {
             n: {
                 "wls": mangled[n][2],
@@ -1100,6 +1301,8 @@ def run_mangle_pipeline(
                     log_f,
                     log_e,
                     masks[e.basename],
+                    gp_grid_binned=gp_grid is not None
+                    and spec_weights_or_none(specs[e.basename]) is not None,
                 )
             if save_epoch_plots:
                 try:
@@ -1175,25 +1378,28 @@ def run_mangle_pipeline(
                 csp_sne=csp_sne,
                 photometry_target=pt,
                 kernel_divide=kd,
+                gp_grid_log10=gp_grid,
             )
             if out is None:
                 report["n_failed"] += 1
                 _record_mangle_failure(entry, "no_phot_constraints")
                 continue
             mask, log_f, log_e, meta = out
+            out_wls = meta.pop("out_wls", spec["wls"])
             gid = basename_to_group.get(entry.basename)
             if gid:
                 per_arm_by_group.setdefault(gid, {})[entry.basename] = mask
                 per_arm_flux_by_group.setdefault(gid, {})[entry.basename] = {
-                    "wls": np.asarray(spec["wls"], dtype=float),
+                    "wls": np.asarray(out_wls, dtype=float),
                     "flux": np.power(10.0, np.clip(log_f, -50, 50)),
                 }
             save_mangled_spectrum(
                 os.path.join(mangled_dir, _mangled_output_basename(entry.mjd)),
-                spec["wls"],
+                out_wls,
                 log_f,
                 log_e,
                 mask,
+                gp_grid_binned=bool(meta.get("gp_grid_binned")),
             )
             report["n_mangled"] += 1
         for gid, members in group_entries.items():

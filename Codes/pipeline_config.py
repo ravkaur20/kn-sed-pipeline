@@ -521,6 +521,9 @@ MANGLE_KERNEL_DIVIDE: int = 800
 MANGLE_GP_KERNEL_MODE: str = "fixed_5"  # "fixed_5" | "kernel_divide_scaled"
 MANGLE_GP_KERNEL_FIXED: float = 5.0  # PyCoCo parity; used when mode == "fixed_5"
 MANGLE_SEAM_REGRESSION_FACTOR: float = 1.5
+# Reduced (unsmoothed) spectra only:
+MANGLE_MAX_CLIPPED_FRAC: float = 0.5  # skip a filter if more of its band than this is clipped (weight 0)
+MANGLE_BIN_MIN_SNR: float = 3.0  # drop GP-grid bins below this S/N (bins use ITER_GP_GRID_DELTA)
 MANGLE_BUNDLE_STITCH_SYNPHOT: bool = True
 MANGLE_RUN_BOTH_FOR_DIAG: bool = False  # run per-arm + bundle once; diagnostics-only compare
 

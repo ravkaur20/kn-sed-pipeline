@@ -23,7 +23,10 @@ from gp_surface_extract import (
 from iter_gp_grid import load_predictions_npz, run_iter_gp_fit
 from mangle_spectra_log import (
     band_flux_trapz,
+    bin_mangled_to_gp_grid,
     build_mangle_group_map,
+    gp_grid_for_spectra,
+    spec_weights_or_none,
     compute_mangling_mask,
     compute_mangling_mask_bundle,
     load_linear_spectrum,
@@ -150,9 +153,11 @@ def compute_photometry_closure(
         if bn not in prescaled_paths:
             continue
         pre = load_linear_spectrum(prescaled_paths[bn])
-        raw_log = np.log10(np.clip(pre["flux"], 1e-30, None))
-        mangled_log = raw_log + np.asarray(mask, dtype=float)
-        flux_lin = np.power(10.0, np.clip(mangled_log, -50, 50))
+        mask_a = np.asarray(mask, dtype=float)
+        if mask_a.size != len(pre):
+            continue
+        # apply the mask in linear flux (keeps noisy pixels with flux <= 0)
+        flux_lin = np.asarray(pre["flux"], dtype=float) * np.power(10.0, mask_a)
         list_path = pconf.spec_list_path_for_mangling(None, snname)
         entries = {e.basename: e for e in load_spec_list(list_path)}
         if bn not in entries:
@@ -185,6 +190,7 @@ def compute_photometry_closure(
                     filter_path=filter_path,
                     snname=snname,
                     csp_sne=csp_sne,
+                    spec_weight=spec_weights_or_none(pre),
                 )
             except Exception:
                 continue
@@ -283,6 +289,14 @@ def remangle_spectra(
 
     masks_out: dict[str, np.ndarray] = {}
     diag_groups: list[dict[str, Any]] = []
+    # Same GP grid as step 5 (built from the same spectrum list), for
+    # reduced spectra that are binned before the log.
+    _pre_all = [load_linear_spectrum(p) for p in prescaled_paths.values()]
+    gp_grid = (
+        gp_grid_for_spectra(_pre_all)
+        if any(spec_weights_or_none(sp) is not None for sp in _pre_all)
+        else None
+    )
     report: dict[str, Any] = {"bundle_aware": bundle_aware, "groups": [], "epochs": []}
 
     def _apply_mask_to_prescaled(
@@ -293,6 +307,18 @@ def remangle_spectra(
     ) -> None:
         pre = load_linear_spectrum(prescaled_paths[basename])
         m_on_pre = interpolate_mangling_mask_to_wls(mask, mask_wls, pre["wls"])
+        masks_out[basename] = m_on_pre
+        weight = spec_weights_or_none(pre)
+        if gp_grid is not None and weight is not None:
+            node_wls, log_f, log_e, m_node = bin_mangled_to_gp_grid(
+                pre["wls"], pre["flux"], pre["fluxerr"], weight,
+                m_on_pre, np.zeros_like(m_on_pre), gp_grid,
+            )
+            save_mangled_spectrum(
+                os.path.join(mangled_out_dir, _mangled_output_basename(spec_mjd)),
+                node_wls, log_f, log_e, m_node, gp_grid_binned=True,
+            )
+            return
         raw_log = np.log10(np.clip(pre["flux"], 1e-30, None))
         mangled_log = raw_log + m_on_pre
         mangled_err = pre["fluxerr"] / (pre["flux"] * np.log(10.0))
@@ -303,7 +329,6 @@ def remangle_spectra(
             mangled_err,
             m_on_pre,
         )
-        masks_out[basename] = m_on_pre
 
     if bundle_aware and group_entries:
         for gid, members in group_entries.items():
@@ -339,15 +364,16 @@ def remangle_spectra(
                 mask_wls = np.asarray(demangled[bn]["wls"], dtype=float)
                 _apply_mask_to_prescaled(bn, m, mask_wls, mjds[bn])
                 pre = load_linear_spectrum(prescaled_paths[bn])
-                raw_log = np.log10(np.clip(pre["flux"], 1e-30, None))
                 m_on_pre = masks_out[bn]
+                w_pre = spec_weights_or_none(pre)
+                keep = np.ones(len(pre), dtype=bool) if w_pre is None else w_pre > 0
                 prescaled_linear[bn] = {
-                    "wls": np.asarray(pre["wls"], dtype=float),
-                    "flux": np.asarray(pre["flux"], dtype=float),
+                    "wls": np.asarray(pre["wls"], dtype=float)[keep],
+                    "flux": np.asarray(pre["flux"], dtype=float)[keep],
                 }
                 mangled_linear[bn] = {
-                    "wls": np.asarray(pre["wls"], dtype=float),
-                    "flux": np.power(10.0, np.clip(raw_log + m_on_pre, -50, 50)),
+                    "wls": np.asarray(pre["wls"], dtype=float)[keep],
+                    "flux": (np.asarray(pre["flux"], dtype=float) * np.power(10.0, m_on_pre))[keep],
                 }
             report["groups"].append({"id": gid, "meta": meta, "members": list(masks.keys())})
             diag_groups.append(
