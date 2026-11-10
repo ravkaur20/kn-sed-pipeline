@@ -8,6 +8,8 @@ it can be printed, edited by hand, and saved to JSON.
 
 Clipping step:
     1. ``propose_clips`` suggests regions (spikes, low S/N, telluric) and edges.
+       Low-S/N regions are only flags: they are shown hatched in the plots and
+       recorded, but not clipped unless you add them by hand.
     2. You edit those lists by hand in the notebook.
     3. ``apply_clip`` trims the ends and bridges the flux across each interior
        region (a straight line between local medians); those pixels get
@@ -361,8 +363,11 @@ def load_choices(snname, filename=None):
     return allc if filename is None else allc.get(filename)
 
 
-def save_clipped(snname, mjd, clipped, regions, edges, note=""):
+def save_clipped(snname, mjd, clipped, regions, edges, note="", flags=None):
     """Write the clipped spectrum, record the choices, update the list file.
+
+    ``flags`` (e.g. the proposed low-S/N regions) are recorded in the JSON
+    for reference only; they are not clipped.
 
     The spectrum file has columns ``wls flux flux_err weight``, always in the
     observed frame; ``flux_err`` is NaN when the input had no errors (filled
@@ -385,6 +390,7 @@ def save_clipped(snname, mjd, clipped, regions, edges, note=""):
     allc[name] = {"mjd": mjd, "edges": list(edges),
                   "shifted_to_observed": bool(clipped.get("shifted_to_observed")),
                   "regions": [list(r) for r in merge_regions(regions)],
+                  "low_snr_flags": [list(r) for r in merge_regions(flags or [])],
                   "note": note}
     with open(choices_path(snname), "w") as f:
         json.dump(allc, f, indent=1, sort_keys=True)
@@ -433,20 +439,35 @@ def plot_raw(spec, ax=None, show_err=True, edges=None, **kw):
     return ax
 
 
-def shade(ax, regions, color, label=None, alpha=0.25):
-    """Shade each (lo, hi) region; only the first one gets a legend label."""
+def shade(ax, regions, color, label=None, alpha=0.25, hatch=None):
+    """Shade each (lo, hi) region; only the first one gets a legend label.
+    With ``hatch`` the region is outlined and hatched instead of filled."""
     for i, (lo, hi) in enumerate(regions):
-        ax.axvspan(lo, hi, color=color, alpha=alpha, lw=0,
-                   label=label if i == 0 else None)
+        lab = label if i == 0 else None
+        if hatch:
+            ax.axvspan(lo, hi, facecolor="none", edgecolor=color, hatch=hatch,
+                       lw=0.8, alpha=0.8, label=lab)
+        else:
+            ax.axvspan(lo, hi, color=color, alpha=alpha, lw=0, label=lab)
 
 
-def plot_proposed(spec, proposed, edges, ax=None):
+def plot_proposed(spec, proposed, edges, ax=None, flags=None):
     """Raw spectrum with each kind of proposed region shaded in its own
-    colour, and the area outside the edges greyed out."""
+    colour, and the area outside the edges greyed out.
+
+    Low-S/N regions (the ``"low_snr"`` entry, or ``flags``) are drawn hatched:
+    they are flags, not clips.
+    """
     ax = plot_raw(spec, ax=ax, show_err=False, edges=edges)
     for kind, regions in proposed.items():
+        if kind == "low_snr":
+            continue
         shade(ax, regions, REGION_COLORS.get(kind, "tab:gray"),
               label="%s (%d)" % (kind, len(regions)))
+    flagged = flags if flags is not None else proposed.get("low_snr", [])
+    if flagged:
+        shade(ax, flagged, REGION_COLORS["low_snr"], hatch="///",
+              label="low S/N, flag only (%d)" % len(flagged))
     shade(ax, [(spec["wl"][0], edges[0]), (edges[1], spec["wl"][-1])],
           "0.3", label="trimmed ends", alpha=0.35)
     ax.legend(fontsize=8, loc="upper right")
