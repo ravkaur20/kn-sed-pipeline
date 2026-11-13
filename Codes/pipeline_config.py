@@ -117,13 +117,31 @@ _gp_inference_kw: dict[str, object] = dict(
     seed=0,
     predict_chunk=10000,
     predict_train=True,
-    # Spectral flux-calibration error in dex (0.01 dex ~ 2.3%):
-    # "none"; "independent" adds it in quadrature to every binned spectral
-    # point; "correlated" gives each spectrum one shared offset of this size in
-    # the GP covariance (photometry and the predicted surface get none).
+    # --- Per-spectrum calibration term (docs/PIPELINE_USER_GUIDE.md, section 7.4.1) ---
+    # Default: no extra term (spectra fit as before).
     spec_calib_mode="none",
     spec_calib_err_dex=0.01,
+    spec_calib_wl_scale_dex=None,
 )
+
+# Suggested alternatives: uncomment ONE block (it overrides the defaults above).
+#
+# (a) Constant offset per spectrum: about 30% fewer wiggles, photometry fit unchanged.
+# _gp_inference_kw.update(
+#     spec_calib_mode="correlated",   # one shared offset per spectrum, left out of the SED
+#     spec_calib_err_dex=0.03,        # offset size, dex (0.03 dex ~ 7%)
+#     spec_calib_wl_scale_dex=None,   # None = same offset at every wavelength
+# )
+#
+# (b) Calibration tilt per spectrum: smoothest SED, photometry fit ~6% worse (median).
+# _gp_inference_kw.update(
+#     spec_calib_mode="correlated",
+#     spec_calib_err_dex=0.03,        # size of the offset/tilt, dex
+#     spec_calib_wl_scale_dex=0.23,   # offset varies over ~0.23 dex in wavelength (x1.7)
+# )
+#
+# Other modes: spec_calib_mode="independent" adds spec_calib_err_dex in
+# quadrature to every spectral point (tested: no visible effect).
 
 GP_PRIOR_CACHE_SUBDIR: str = "diagnostics/gp_prior_cache"
 GP_PLOT_RAW_AND_PROCESSED: bool = False

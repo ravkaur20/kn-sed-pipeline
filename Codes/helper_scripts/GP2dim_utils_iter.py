@@ -343,6 +343,12 @@ def run_2DGP_GRID_iter(
 		kernel_time_scale=np.float64(prep["kernel_time_scale"]),
 		y_var_scale=np.float64(prep["y_var_scale"]),
 		y_scale_factor=np.float64(GP2DIM_Class.grid_norm_info["scale_factor"]),
+		# log10 wavelength per unit of normalized x1 (for spec_calib_wl_scale_dex)
+		x1_log10_per_unit=np.float64(
+			GP2DIM_Class.grid_norm_info["x1_std"]
+			if _grid_norm_uses_zscore(GP2DIM_Class.grid_norm_info)
+			else GP2DIM_Class.grid_norm_info["norm1"]
+		),
 		prior_points=prep["prior_points"],
 		prior_values=prep["prior_values"],
 	)

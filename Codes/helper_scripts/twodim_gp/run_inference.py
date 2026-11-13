@@ -83,6 +83,10 @@ DEFAULT_KWARGS: dict[str, Any] = {
     # per spectrum in the GP covariance, left out of the prediction).
     "spec_calib_mode": "none",
     "spec_calib_err_dex": 0.01,
+    # "correlated" only: None = the offset is constant across each spectrum;
+    # a number (dex in log10 wavelength) lets it vary smoothly with
+    # wavelength on that scale (a per-spectrum calibration "tilt").
+    "spec_calib_wl_scale_dex": None,
 }
 
 
@@ -256,6 +260,19 @@ def _spec_calib_sigma_scaled(cfg: Mapping[str, Any], y_scale_factor: Optional[fl
     return dex * np.log(10.0) / float(y_scale_factor)
 
 
+def _spec_calib_wl_scale_normed(cfg: Mapping[str, Any], x1_log10_per_unit: Optional[float]) -> Optional[float]:
+    """``spec_calib_wl_scale_dex`` in normalized x1 units (None = constant offset)."""
+    dex = cfg.get("spec_calib_wl_scale_dex")
+    if dex is None or str(cfg.get("spec_calib_mode", "none")) != "correlated":
+        return None
+    dex = float(dex)
+    if not dex > 0:
+        raise ValueError("spec_calib_wl_scale_dex must be > 0 or None, got %r" % (dex,))
+    if not x1_log10_per_unit:
+        raise ValueError("spec_calib_wl_scale_dex needs the bundle's x1_log10_per_unit")
+    return dex / float(x1_log10_per_unit)
+
+
 def _predict_chunked(
     gp: george.GP, y: np.ndarray, X_query: np.ndarray, chunk: int
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -356,6 +373,7 @@ def _make_neg_ll(
     point_class: np.ndarray,
     mean_model,
     spec_calib_sigma: float = 0.0,
+    spec_calib_wl_scale: Optional[float] = None,
 ):
     eval_count: dict[str, Any] = {"n": 0, "best": np.inf, "best_theta": None}
 
@@ -366,7 +384,7 @@ def _make_neg_ll(
         except Exception:
             return 1e15
         try:
-            kernel = gu.build_kernel(cfg, spec_calib_sigma)
+            kernel = gu.build_kernel(cfg, spec_calib_sigma, spec_calib_wl_scale)
         except (ValueError, FloatingPointError):
             return 1e15
         gp = george.GP(kernel, mean=mean_model) if mean_model is not None else george.GP(kernel)
@@ -442,6 +460,11 @@ def _open_bundle_arrays(bundle: BundleInput) -> dict[str, np.ndarray]:
         if _has_key(data, "y_scale_factor")
         else float("nan")
     )
+    x1_u = (
+        float(np.asarray(data["x1_log10_per_unit"], dtype=float).ravel()[0])
+        if _has_key(data, "x1_log10_per_unit")
+        else float("nan")
+    )
 
     pp = np.zeros((0, 2), dtype=np.float64)
     pv = np.zeros((0,), dtype=np.float64)
@@ -462,6 +485,7 @@ def _open_bundle_arrays(bundle: BundleInput) -> dict[str, np.ndarray]:
         "kernel_time_scale": np.array(k_t),
         "y_var_scale": np.array(y_vs),
         "y_scale_factor": np.array(y_sf),
+        "x1_log10_per_unit": np.array(x1_u),
         "prior_points": pp,
         "prior_values": pv,
     }
@@ -506,6 +530,10 @@ def run_gp_from_bundle(
     calib_sigma = _spec_calib_sigma_scaled(cfg, y_sf if np.isfinite(y_sf) else None)
     calib_mode = str(cfg.get("spec_calib_mode", "none")) if calib_sigma > 0 else "none"
     corr_sigma = calib_sigma if calib_mode == "correlated" else 0.0
+    x1_u = float(bd["x1_log10_per_unit"])
+    corr_wl_scale = (
+        _spec_calib_wl_scale_normed(cfg, x1_u if np.isfinite(x1_u) else None) if corr_sigma > 0 else None
+    )
     prior_pts = bd["prior_points"]
     prior_val = bd["prior_values"]
 
@@ -551,7 +579,9 @@ def run_gp_from_bundle(
         else:
             X_opt, y_opt, yerr_opt, cls_opt = X_gp, y, yerr_fit, point_class
 
-        neg_ll, counter = _make_neg_ll(cfg0, X_opt, y_opt, yerr_opt, cls_opt, mean_model, corr_sigma)
+        neg_ll, counter = _make_neg_ll(
+            cfg0, X_opt, y_opt, yerr_opt, cls_opt, mean_model, corr_sigma, corr_wl_scale
+        )
         theta0 = cfg0.to_vector()
         bounds, bound_msgs = _tightened_optimizer_bounds(
             cfg0,
@@ -587,7 +617,7 @@ def run_gp_from_bundle(
         cfg_final = cfg0
         ll_final_opt = None
 
-    kernel = gu.build_kernel(cfg_final, corr_sigma)
+    kernel = gu.build_kernel(cfg_final, corr_sigma, corr_wl_scale)
     gp = george.GP(kernel, mean=mean_model) if mean_model is not None else george.GP(kernel)
     sigma_phot = float(np.exp(cfg_final.log_sigma_phot))
     sigma_spec = float(np.exp(cfg_final.log_sigma_spec))
@@ -658,6 +688,7 @@ def run_gp_from_bundle(
         "early_blue_wl_start": blue_wl_start,
         "spec_calib_mode_applied": calib_mode,
         "spec_calib_sigma_scaled": calib_sigma,
+        "spec_calib_wl_scale_normed": corr_wl_scale,
         "optimizer_bound_overrides": bound_msgs if cfg["optimize"] else [],
     }
 

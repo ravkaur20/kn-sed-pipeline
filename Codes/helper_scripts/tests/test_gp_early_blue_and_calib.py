@@ -108,6 +108,59 @@ class TestSpecCalib(unittest.TestCase):
             [[1, 1, 0, 0], [1, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 0]]), atol=1e-12)
 
 
+def _two_tilted_spectra_bundle(tilt):
+    """Two spectra 0.01 apart in phase with opposite linear tilts in wavelength."""
+    b = _two_spectra_bundle(0.0)
+    w = b["X"][:, 0]
+    sign = np.r_[np.ones(60), -np.ones(60)]
+    b["y"] = b["y"] + sign * tilt * (w - 0.5)
+    b["x1_log10_per_unit"] = np.array(1.0)
+    return b
+
+
+class TestSpecCalibTilt(unittest.TestCase):
+    KW = TestSpecCalib.KW
+
+    def _wiggle(self, wl, **kw):
+        out = ri.run_gp_from_bundle(_two_tilted_spectra_bundle(0.2), **dict(self.KW, **kw))
+        X, mu = out["X_fill"], out["mu"]
+        sel = np.isclose(X[:, 0], wl)
+        return np.ptp(mu[sel][np.argsort(X[sel, 1])])
+
+    def test_tilt_absorbs_what_a_constant_offset_cannot(self):
+        # at the blue end the two spectra differ by 0.2; a constant offset
+        # cannot take a difference that changes sign across the spectrum
+        none = self._wiggle(0.0)
+        const = self._wiggle(0.0, spec_calib_mode="correlated", spec_calib_err_dex=0.1)
+        tilt = self._wiggle(0.0, spec_calib_mode="correlated", spec_calib_err_dex=0.1,
+                            spec_calib_wl_scale_dex=1.0)
+        self.assertGreater(none, 0.05)
+        self.assertGreater(const, none / 3)
+        self.assertLess(tilt, const / 3)
+
+    def test_wl_scale_conversion_and_scope(self):
+        cfg = dict(spec_calib_mode="correlated", spec_calib_wl_scale_dex=0.23)
+        self.assertAlmostEqual(ri._spec_calib_wl_scale_normed(cfg, 0.23), 1.0)
+        self.assertIsNone(ri._spec_calib_wl_scale_normed(dict(cfg, spec_calib_wl_scale_dex=None), 0.23))
+        # only the correlated mode uses it
+        self.assertIsNone(ri._spec_calib_wl_scale_normed(dict(cfg, spec_calib_mode="independent"), 0.23))
+        with self.assertRaises(ValueError):
+            ri._spec_calib_wl_scale_normed(cfg, None)
+        with self.assertRaises(ValueError):
+            ri._spec_calib_wl_scale_normed(dict(cfg, spec_calib_wl_scale_dex=-1.0), 0.23)
+
+    def test_tilt_kernel_decays_with_wavelength_within_a_spectrum(self):
+        X = np.array([[0, 0], [1, 0], [3, 0], [0, 1]], float)
+        pc = np.array(["spec"] * 4)
+        cfg = gu.KernelConfig()
+        d = gu.build_kernel(cfg, 0.1, 1.0).get_value(gu.add_spec_calib_columns(X, pc)) \
+            - gu.build_kernel(cfg).get_value(X)
+        self.assertAlmostEqual(d[0, 1], 0.01 * np.exp(-0.5), places=10)
+        self.assertAlmostEqual(d[0, 2], 0.01 * np.exp(-4.5), places=10)
+        self.assertAlmostEqual(d[0, 3], 0.0, places=12)
+        np.testing.assert_allclose(np.diag(d), 0.01)
+
+
 def run_gp_from_bundle_kw(bundle, **kw):
     return ri.run_gp_from_bundle(bundle, **kw)
 

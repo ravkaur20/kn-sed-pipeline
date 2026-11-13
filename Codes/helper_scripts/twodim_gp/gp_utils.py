@@ -271,7 +271,11 @@ def _sigmoid(x: float) -> float:
     return 1.0 / (1.0 + np.exp(-x))
 
 
-def build_kernel(cfg: KernelConfig, spec_calib_sigma: float = 0.0) -> kernels.Kernel:
+def build_kernel(
+    cfg: KernelConfig,
+    spec_calib_sigma: float = 0.0,
+    spec_calib_wl_scale: Optional[float] = None,
+) -> kernels.Kernel:
     """Construct a george kernel from a ``KernelConfig``.
 
     The full kernel is ``amp * k_wls(axes=1) * k_time(axes=0)``, where each
@@ -282,7 +286,10 @@ def build_kernel(cfg: KernelConfig, spec_calib_sigma: float = 0.0) -> kernels.Ke
     :func:`add_spec_calib_columns`) and a per-spectrum offset term is added:
     points from the same spectrum share one offset with standard deviation
     ``spec_calib_sigma`` (in scaled-y units); photometry and prediction
-    points get none.
+    points get none. With ``spec_calib_wl_scale`` (in normalized x1 units)
+    that offset is no longer constant across the spectrum but varies smoothly
+    with wavelength on that scale (a "tilt"): the term is multiplied by a
+    squared-exponential kernel in wavelength.
     """
     ndim = 4 if spec_calib_sigma > 0 else 2
     metric_t = float(np.exp(cfg.log_metric_t))
@@ -306,7 +313,13 @@ def build_kernel(cfg: KernelConfig, spec_calib_sigma: float = 0.0) -> kernels.Ke
         # is_spec_i * is_spec_j * [same spectrum id]; ids are SPEC_ID_SPACING apart
         same_spec = kernels.ExpSquaredKernel(metric=1.0, ndim=ndim, axes=2)
         both_spec = kernels.DotProductKernel(ndim=ndim, axes=3)
-        k = k + float(spec_calib_sigma) ** 2 * (both_spec * same_spec)
+        calib = both_spec * same_spec
+        if spec_calib_wl_scale is not None:
+            if not spec_calib_wl_scale > 0:
+                raise ValueError("spec_calib_wl_scale must be > 0, got %r" % (spec_calib_wl_scale,))
+            calib = calib * kernels.ExpSquaredKernel(
+                metric=float(spec_calib_wl_scale) ** 2, ndim=ndim, axes=0)
+        k = k + float(spec_calib_sigma) ** 2 * calib
     return k
 
 
@@ -434,9 +447,14 @@ def build_mean(
     raise ValueError(f"unhandled mean {name!r}")
 
 
-def make_gp(cfg: KernelConfig, mean_model: Optional[Model], spec_calib_sigma: float = 0.0) -> george.GP:
+def make_gp(
+    cfg: KernelConfig,
+    mean_model: Optional[Model],
+    spec_calib_sigma: float = 0.0,
+    spec_calib_wl_scale: Optional[float] = None,
+) -> george.GP:
     """Construct (but do not compute) a george.GP from a config + mean."""
-    kernel = build_kernel(cfg, spec_calib_sigma)
+    kernel = build_kernel(cfg, spec_calib_sigma, spec_calib_wl_scale)
     if mean_model is None:
         return george.GP(kernel)
     return george.GP(kernel, mean=mean_model)
