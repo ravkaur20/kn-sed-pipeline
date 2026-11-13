@@ -407,6 +407,48 @@ def save_clipped(snname, mjd, clipped, regions, edges, note="", flags=None):
 
 
 # ---------------------------------------------------------------------------
+# Printing regions as numbers you can paste and edit
+# ---------------------------------------------------------------------------
+
+def _num(x, nd=1):
+    """A wavelength as short text: no decimals when it is whole."""
+    x = round(float(x), nd)
+    return "%d" % x if x == int(x) else ("%%.%df" % nd) % x
+
+
+def fmt_regions(regions, nd=1):
+    """``[(lo, hi), ...]`` as Python text, rounded to ``nd`` decimals."""
+    return "[" + ", ".join("(%s, %s)" % (_num(a, nd), _num(b, nd))
+                           for a, b in regions) + "]"
+
+
+def print_proposed(proposed, edges, n_widest=5):
+    """Print the proposals: telluric bands and edges as lines ready to paste
+    into the clip cell, low-S/N flags, and a short summary of the spikes."""
+    print("telluric = %s" % fmt_regions(proposed.get("telluric", [])))
+    print("edges = (%s, %s)" % (_num(edges[0], 0), _num(edges[1], 0)))
+    flags = proposed.get("low_snr", [])
+    print("low S/N (flag only, %d): %s" % (len(flags), fmt_regions(flags)))
+    spikes = proposed.get("spike", [])
+    if not spikes:
+        print("spikes: none")
+        return
+    w = np.array([b - a for a, b in spikes])
+    widest = sorted(spikes, key=lambda r: r[0] - r[1])[:n_widest]
+    print("spikes: %d regions covering %.0f A, width median %.1f A, max %.1f A"
+          % (len(spikes), w.sum(), np.median(w), w.max()))
+    print("  widest: %s" % fmt_regions(sorted(widest)))
+
+
+def print_clip(spikes, telluric, manual, edges):
+    """Print the regions that will actually be clipped."""
+    print("edges    = (%s, %s)" % (_num(edges[0], 0), _num(edges[1], 0)))
+    print("telluric = %s" % fmt_regions(telluric))
+    print("manual   = %s" % fmt_regions(manual))
+    print("spikes   : %d regions" % len(spikes))
+
+
+# ---------------------------------------------------------------------------
 # Plotting (each takes an ``ax`` so you can restyle or zoom per cell)
 # ---------------------------------------------------------------------------
 
@@ -451,19 +493,34 @@ def shade(ax, regions, color, label=None, alpha=0.25, hatch=None):
             ax.axvspan(lo, hi, color=color, alpha=alpha, lw=0, label=lab)
 
 
-def plot_proposed(spec, proposed, edges, ax=None, flags=None):
+def label_regions(ax, regions, color, max_labels=20):
+    """Write ``lo-hi`` above each region (skipped when there are too many)."""
+    if not regions or len(regions) > max_labels:
+        return
+    tr = ax.get_xaxis_transform()
+    for lo, hi in regions:
+        ax.text(0.5 * (lo + hi), 0.98, "%s-%s" % (_num(lo), _num(hi)),
+                transform=tr, rotation=90, ha="center", va="top",
+                fontsize=7, color=color)
+
+
+def plot_proposed(spec, proposed, edges, ax=None, flags=None,
+                  label_kinds=("telluric", "manual")):
     """Raw spectrum with each kind of proposed region shaded in its own
     colour, and the area outside the edges greyed out.
 
     Low-S/N regions (the ``"low_snr"`` entry, or ``flags``) are drawn hatched:
-    they are flags, not clips.
+    they are flags, not clips. Regions of the kinds in ``label_kinds`` get
+    their wavelength range written above them.
     """
     ax = plot_raw(spec, ax=ax, show_err=False, edges=edges)
     for kind, regions in proposed.items():
         if kind == "low_snr":
             continue
-        shade(ax, regions, REGION_COLORS.get(kind, "tab:gray"),
-              label="%s (%d)" % (kind, len(regions)))
+        color = REGION_COLORS.get(kind, "tab:gray")
+        shade(ax, regions, color, label="%s (%d)" % (kind, len(regions)))
+        if kind in label_kinds:
+            label_regions(ax, regions, color)
     flagged = flags if flags is not None else proposed.get("low_snr", [])
     if flagged:
         shade(ax, flagged, REGION_COLORS["low_snr"], hatch="///",
