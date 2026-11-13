@@ -182,3 +182,40 @@ def mw_extinction_factor(w, ebv, rv=3.1):
     import extinction
     a = extinction.ccm89(np.asarray(w, dtype=float), rv * ebv, rv)
     return 10 ** (0.4 * a)
+
+
+# ---------------------------------------------------------------------------
+# WISeREP downloads (wiserep_manifest.csv written next to the files)
+# ---------------------------------------------------------------------------
+
+def read_wiserep(path):
+    """(wl, flux, err or None) from a WISeREP ascii/csv file. Selsing/ENGRAVE
+    files: wl, flux (telluric corrected), flux (not corrected), error.
+    PESSTO csv: WAVE, FLUX, ERR, BGFLUX. Others: wl, flux."""
+    if path.endswith(".csv"):
+        d = np.genfromtxt(path, delimiter=",", names=True)
+        return d["WAVE"], d["FLUX"], d["ERR"]
+    d = np.loadtxt(path, comments="#")
+    err = d[:, 3] if d.shape[1] >= 4 else (d[:, 2] if d.shape[1] == 3 else None)
+    return d[:, 0], d[:, 1], err
+
+
+def compare_versions(w1, f1, w2, f2, bands=None, nbin=25):
+    """How two versions of one spectrum differ: same pixels? same flux?
+    Median flux ratio 1/2 in bands, and the scatter of the ratio (shape)."""
+    out = dict(same_pixels=bool(len(w1) == len(w2) and np.allclose(w1, w2, rtol=1e-7, atol=0)))
+    out["identical"] = bool(out["same_pixels"] and np.allclose(f1, f2, rtol=1e-4, atol=0))
+    lo, hi = max(w1.min(), w2.min()), min(w1.max(), w2.max())
+    out["overlap"] = "%.0f-%.0f" % (lo, hi)
+    if hi - lo < 200:
+        return out
+    if bands is None:
+        bands = [(lo + k * (hi - lo) / 4, lo + (k + 1) * (hi - lo) / 4) for k in range(4)]
+    r = band_ratios(w1, f1, w2, f2, bands, nbin)
+    out["ratio_by_quarter"] = [round(x, 3) for x in r]
+    out["ratio_median"] = round(float(np.nanmedian(r)), 3)
+    e = np.linspace(lo, hi, 4 * nbin + 1)
+    rr = band_ratios(w1, f1, w2, f2, list(zip(e[:-1], e[1:])), 1)
+    rr = np.array([x for x in rr if np.isfinite(x) and x > 0])
+    out["shape_scatter_dex"] = round(float(np.std(np.log10(rr / np.median(rr)))), 3) if rr.size > 5 else np.nan
+    return out
