@@ -49,6 +49,11 @@ DEFAULT_KWARGS: dict[str, Any] = {
     "sigma_spec": 0.005,
     "enforce_mono_early": True,
     "enforce_blue_early": True,
+    # "blend": before the cutoff, flux may not rise toward redder wavelengths,
+    #   starting at the bluest spectral point and faded in with the same tanh
+    #   as the monotone step; "off": skip; "hard": legacy unblended clamp over
+    #   the whole grid. None -> "hard" if enforce_blue_early else "off".
+    "early_blue_mode": None,
     "early_time_cutoff": -4.0,
     "mono_floor_fraction": 0.5,
     "mono_min_slope": 0.005,
@@ -73,6 +78,11 @@ DEFAULT_KWARGS: dict[str, Any] = {
     # floor = max(0.005, frac * median yerr on spec) before optimization.
     "sigma_spec_min": None,
     "sigma_spec_adaptive_frac": 0.35,
+    # Spectral calibration error (dex): "none", "independent" (added in
+    # quadrature to every spectral point) or "correlated" (one shared offset
+    # per spectrum in the GP covariance, left out of the prediction).
+    "spec_calib_mode": "none",
+    "spec_calib_err_dex": 0.01,
 }
 
 
@@ -178,23 +188,72 @@ def _enforce_monotone_early(
     return mu_out, std, n_modified
 
 
-def _enforce_blue_early(X_fill: np.ndarray, mu: np.ndarray, cutoff: float) -> tuple[np.ndarray, int]:
+def _enforce_blue_early(
+    X_fill: np.ndarray,
+    mu: np.ndarray,
+    cutoff: float,
+    mode: str = "hard",
+    wl_start: Optional[float] = None,
+    smoothing_scale: float = 0.3,
+) -> tuple[np.ndarray, int]:
+    """Keep early-time flux from rising toward redder wavelengths.
+
+    ``mode="hard"`` (legacy): at every phase before ``cutoff``, replace mu by
+    its running minimum from the bluest wavelength. ``mode="blend"``: the
+    running minimum starts at ``wl_start`` (bluer wavelengths are left as
+    they are) and is faded in with ``0.5 * (1 - tanh((phase - cutoff) /
+    smoothing_scale))``, so there is no step at the cutoff.
+    """
+    if mode == "off":
+        return mu, 0
+    if mode not in ("hard", "blend"):
+        raise ValueError("early_blue_mode must be 'off', 'hard' or 'blend', not %r" % (mode,))
     mu_out = mu.copy()
     phases_unique = np.unique(X_fill[:, 1])
+    scale = max(float(smoothing_scale), 1e-6)
     n_modified = 0
     for ph in phases_unique:
-        if ph >= cutoff:
-            continue
-        mask = X_fill[:, 1] == ph
-        idx = np.where(mask)[0]
+        if mode == "hard":
+            if ph >= cutoff:
+                continue
+            w_cap = 1.0
+        else:
+            w_cap = 0.5 * (1.0 - np.tanh((ph - cutoff) / scale))
+            if w_cap < 1e-6:
+                continue
+        idx = np.where(X_fill[:, 1] == ph)[0]
         wls = X_fill[idx, 0]
-        order = np.argsort(wls)
-        idx_sorted = idx[order]
+        if mode == "blend" and wl_start is not None:
+            keep = wls >= wl_start
+            idx, wls = idx[keep], wls[keep]
+            if idx.size == 0:
+                continue
+        idx_sorted = idx[np.argsort(wls)]
         mu_in = mu_out[idx_sorted]
-        mu_corr = np.minimum.accumulate(mu_in)
-        n_modified += int(np.sum(mu_corr != mu_in))
+        mu_corr = (1.0 - w_cap) * mu_in + w_cap * np.minimum.accumulate(mu_in)
+        n_modified += int(np.sum(np.abs(mu_corr - mu_in) > 1e-12))
         mu_out[idx_sorted] = mu_corr
     return mu_out, n_modified
+
+
+def _resolve_early_blue_mode(cfg: Mapping[str, Any]) -> str:
+    mode = cfg.get("early_blue_mode")
+    if mode is None:
+        return "hard" if cfg.get("enforce_blue_early") else "off"
+    return str(mode)
+
+
+def _spec_calib_sigma_scaled(cfg: Mapping[str, Any], y_scale_factor: Optional[float]) -> float:
+    """``spec_calib_err_dex`` in the GP's scaled-y units (ln flux / scale)."""
+    mode = str(cfg.get("spec_calib_mode", "none"))
+    if mode not in ("none", "independent", "correlated"):
+        raise ValueError("spec_calib_mode must be 'none', 'independent' or 'correlated', not %r" % (mode,))
+    dex = float(cfg.get("spec_calib_err_dex") or 0.0)
+    if mode == "none" or dex <= 0:
+        return 0.0
+    if not y_scale_factor:
+        raise ValueError("spec_calib_mode=%r needs the bundle's y_scale_factor" % mode)
+    return dex * np.log(10.0) / float(y_scale_factor)
 
 
 def _predict_chunked(
@@ -296,6 +355,7 @@ def _make_neg_ll(
     yerr: np.ndarray,
     point_class: np.ndarray,
     mean_model,
+    spec_calib_sigma: float = 0.0,
 ):
     eval_count: dict[str, Any] = {"n": 0, "best": np.inf, "best_theta": None}
 
@@ -306,7 +366,7 @@ def _make_neg_ll(
         except Exception:
             return 1e15
         try:
-            kernel = gu.build_kernel(cfg)
+            kernel = gu.build_kernel(cfg, spec_calib_sigma)
         except (ValueError, FloatingPointError):
             return 1e15
         gp = george.GP(kernel, mean=mean_model) if mean_model is not None else george.GP(kernel)
@@ -377,6 +437,12 @@ def _open_bundle_arrays(bundle: BundleInput) -> dict[str, np.ndarray]:
         else float(np.var(y))
     )
 
+    y_sf = (
+        float(np.asarray(data["y_scale_factor"], dtype=float).ravel()[0])
+        if _has_key(data, "y_scale_factor")
+        else float("nan")
+    )
+
     pp = np.zeros((0, 2), dtype=np.float64)
     pv = np.zeros((0,), dtype=np.float64)
     if _has_key(data, "prior_points") and _has_key(data, "prior_values"):
@@ -395,6 +461,7 @@ def _open_bundle_arrays(bundle: BundleInput) -> dict[str, np.ndarray]:
         "kernel_wls_scale": np.array(k_w),
         "kernel_time_scale": np.array(k_t),
         "y_var_scale": np.array(y_vs),
+        "y_scale_factor": np.array(y_sf),
         "prior_points": pp,
         "prior_values": pv,
     }
@@ -435,6 +502,10 @@ def run_gp_from_bundle(
     X_fill = bd["X_fill"]
 
     point_class = gu.classify_points(X, threshold=int(cfg["phot_spec_threshold"]))
+    y_sf = float(bd["y_scale_factor"])
+    calib_sigma = _spec_calib_sigma_scaled(cfg, y_sf if np.isfinite(y_sf) else None)
+    calib_mode = str(cfg.get("spec_calib_mode", "none")) if calib_sigma > 0 else "none"
+    corr_sigma = calib_sigma if calib_mode == "correlated" else 0.0
     prior_pts = bd["prior_points"]
     prior_val = bd["prior_values"]
 
@@ -460,6 +531,12 @@ def run_gp_from_bundle(
     elapsed_opt = 0.0
     bound_msgs: list[str] = []
     sigma_spec_min = _resolve_sigma_spec_min(cfg, yerr, point_class)
+    # Calibration error goes in after the adaptive floor, which follows the
+    # statistical errors only.
+    yerr_fit = yerr
+    if calib_mode == "independent":
+        yerr_fit = np.where(point_class == gu.SPEC, np.sqrt(yerr ** 2 + calib_sigma ** 2), yerr)
+    X_gp = gu.add_spec_calib_columns(X, point_class) if corr_sigma > 0 else X
 
     if cfg["optimize"]:
         sub_n = int(cfg["optimize_subsample"])
@@ -470,11 +547,11 @@ def run_gp_from_bundle(
             n_spec_keep = max(sub_n - phot_idx.size, 100)
             spec_keep = rng.choice(spec_idx, size=min(n_spec_keep, spec_idx.size), replace=False)
             sub_idx = np.sort(np.concatenate([phot_idx, spec_keep]))
-            X_opt, y_opt, yerr_opt, cls_opt = X[sub_idx], y[sub_idx], yerr[sub_idx], point_class[sub_idx]
+            X_opt, y_opt, yerr_opt, cls_opt = X_gp[sub_idx], y[sub_idx], yerr_fit[sub_idx], point_class[sub_idx]
         else:
-            X_opt, y_opt, yerr_opt, cls_opt = X, y, yerr, point_class
+            X_opt, y_opt, yerr_opt, cls_opt = X_gp, y, yerr_fit, point_class
 
-        neg_ll, counter = _make_neg_ll(cfg0, X_opt, y_opt, yerr_opt, cls_opt, mean_model)
+        neg_ll, counter = _make_neg_ll(cfg0, X_opt, y_opt, yerr_opt, cls_opt, mean_model, corr_sigma)
         theta0 = cfg0.to_vector()
         bounds, bound_msgs = _tightened_optimizer_bounds(
             cfg0,
@@ -510,19 +587,20 @@ def run_gp_from_bundle(
         cfg_final = cfg0
         ll_final_opt = None
 
-    kernel = gu.build_kernel(cfg_final)
+    kernel = gu.build_kernel(cfg_final, corr_sigma)
     gp = george.GP(kernel, mean=mean_model) if mean_model is not None else george.GP(kernel)
     sigma_phot = float(np.exp(cfg_final.log_sigma_phot))
     sigma_spec = float(np.exp(cfg_final.log_sigma_spec))
-    diag = gu.compute_diagonal(yerr, point_class, sigma_phot, sigma_spec)
+    diag = gu.compute_diagonal(yerr_fit, point_class, sigma_phot, sigma_spec)
 
     t0 = time.time()
-    gp.compute(X, diag)
+    gp.compute(X_gp, diag)
     elapsed_compute = time.time() - t0
     log_lik = float(gp.log_likelihood(y))
 
     chunk = int(cfg["predict_chunk"])
-    mu, var = _predict_chunked(gp, y, X_fill, chunk)
+    X_fill_gp = gu.add_spec_calib_columns(X_fill) if corr_sigma > 0 else X_fill
+    mu, var = _predict_chunked(gp, y, X_fill_gp, chunk)
     n_neg = int((var < 0).sum())
     var = np.maximum(var, 0.0)
     std = np.sqrt(var)
@@ -539,8 +617,17 @@ def run_gp_from_bundle(
             min_slope=float(cfg["mono_min_slope"]),
             smoothing_scale=float(cfg["mono_smoothing_scale"]),
         )
-    if cfg["enforce_blue_early"]:
-        mu, n_modified_blue = _enforce_blue_early(X_fill, mu, float(cfg["early_time_cutoff"]))
+    blue_mode = _resolve_early_blue_mode(cfg)
+    spec_rows = point_class == gu.SPEC
+    blue_wl_start = float(X[spec_rows, 0].min()) if spec_rows.any() else None
+    mu, n_modified_blue = _enforce_blue_early(
+        X_fill,
+        mu,
+        float(cfg["early_time_cutoff"]),
+        mode=blue_mode,
+        wl_start=blue_wl_start,
+        smoothing_scale=float(cfg["mono_smoothing_scale"]),
+    )
 
     payload: dict[str, Any] = {
         "mu": mu,
@@ -567,11 +654,17 @@ def run_gp_from_bundle(
         "effective_kwargs": dict(cfg),
         "prior_cache_dir": cache_workdir,
         "sigma_spec_min_applied": sigma_spec_min,
+        "early_blue_mode_applied": blue_mode,
+        "early_blue_wl_start": blue_wl_start,
+        "spec_calib_mode_applied": calib_mode,
+        "spec_calib_sigma_scaled": calib_sigma,
         "optimizer_bound_overrides": bound_msgs if cfg["optimize"] else [],
     }
 
     if cfg.get("predict_train"):
-        mu_tr, var_tr = _predict_chunked(gp, y, X, chunk)
+        # at the training points without their spectrum offsets
+        X_tr = gu.add_spec_calib_columns(X) if corr_sigma > 0 else X
+        mu_tr, var_tr = _predict_chunked(gp, y, X_tr, chunk)
         var_tr = np.maximum(var_tr, 0.0)
         payload["mu_train"] = mu_tr
         payload["std_train"] = np.sqrt(var_tr)

@@ -342,6 +342,7 @@ def run_2DGP_GRID_iter(
 		kernel_wls_scale=np.float64(prep["kernel_wls_scale"]),
 		kernel_time_scale=np.float64(prep["kernel_time_scale"]),
 		y_var_scale=np.float64(prep["y_var_scale"]),
+		y_scale_factor=np.float64(GP2DIM_Class.grid_norm_info["scale_factor"]),
 		prior_points=prep["prior_points"],
 		prior_values=prep["prior_values"],
 	)

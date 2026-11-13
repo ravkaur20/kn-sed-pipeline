@@ -103,6 +103,10 @@ _gp_inference_kw: dict[str, object] = dict(
     sigma_spec=0.005,
     enforce_mono_early=True,
     enforce_blue_early=True,
+    # Early-time "bluest is brightest" step: "blend" (starts at the bluest
+    # spectral wavelength, faded in at the cutoff, no step), "off", or "hard"
+    # (legacy: unblended over the whole grid; leaves a step at the cutoff).
+    early_blue_mode="blend",
     early_time_cutoff=-4.0,
     mono_floor_fraction=0.5,
     mono_min_slope=0.005,
@@ -113,6 +117,12 @@ _gp_inference_kw: dict[str, object] = dict(
     seed=0,
     predict_chunk=10000,
     predict_train=True,
+    # Spectral flux-calibration error in dex (0.01 dex ~ 2.3%):
+    # "none"; "independent" adds it in quadrature to every binned spectral
+    # point; "correlated" gives each spectrum one shared offset of this size in
+    # the GP covariance (photometry and the predicted surface get none).
+    spec_calib_mode="none",
+    spec_calib_err_dex=0.01,
 )
 
 GP_PRIOR_CACHE_SUBDIR: str = "diagnostics/gp_prior_cache"

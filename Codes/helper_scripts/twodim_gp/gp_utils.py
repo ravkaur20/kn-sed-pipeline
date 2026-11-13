@@ -109,24 +109,24 @@ def compute_diagonal(
     return np.sqrt(np.asarray(yerr, dtype=float) ** 2 + sigma_class**2 + floor**2)
 
 
-def _normalized_axis_kernel(name: str, metric: float, axis: int) -> kernels.Kernel:
+def _normalized_axis_kernel(name: str, metric: float, axis: int, ndim: int = 2) -> kernels.Kernel:
     """Return a george axis-restricted kernel that returns 1.0 at zero distance.
 
     All george stationary kernels are unit-amplitude by default, so we just
     pick the right family.
     """
     if name == "matern32":
-        return kernels.Matern32Kernel(metric=metric, ndim=2, axes=axis)
+        return kernels.Matern32Kernel(metric=metric, ndim=ndim, axes=axis)
     if name == "matern52":
-        return kernels.Matern52Kernel(metric=metric, ndim=2, axes=axis)
+        return kernels.Matern52Kernel(metric=metric, ndim=ndim, axes=axis)
     if name == "expsq":
-        return kernels.ExpSquaredKernel(metric=metric, ndim=2, axes=axis)
+        return kernels.ExpSquaredKernel(metric=metric, ndim=ndim, axes=axis)
     if name == "rq":
         # Rational Quadratic with mid-range alpha; alpha is also a kernel param,
         # but for now we keep it fixed in the warm-start. The optimizer
         # expression is sufficient with metric only.
         return kernels.RationalQuadraticKernel(
-            log_alpha=0.0, metric=metric, ndim=2, axes=axis
+            log_alpha=0.0, metric=metric, ndim=ndim, axes=axis
         )
     raise ValueError(f"unknown kernel {name!r}; supported: {KERNEL_NAMES}")
 
@@ -137,6 +137,7 @@ def _additive_axis_kernel(
     metric_long: float,
     weight_short: float,
     axis: int,
+    ndim: int = 2,
 ) -> kernels.Kernel:
     """Return ``w * k_short + (1 - w) * k_long``.
 
@@ -145,8 +146,8 @@ def _additive_axis_kernel(
     short-vs-long mixture.
     """
     weight_short = float(np.clip(weight_short, 1e-6, 1.0 - 1e-6))
-    k_short = _normalized_axis_kernel(name, metric_short, axis)
-    k_long = _normalized_axis_kernel(name, metric_long, axis)
+    k_short = _normalized_axis_kernel(name, metric_short, axis, ndim)
+    k_long = _normalized_axis_kernel(name, metric_long, axis, ndim)
     return weight_short * k_short + (1.0 - weight_short) * k_long
 
 
@@ -270,30 +271,70 @@ def _sigmoid(x: float) -> float:
     return 1.0 / (1.0 + np.exp(-x))
 
 
-def build_kernel(cfg: KernelConfig) -> kernels.Kernel:
+def build_kernel(cfg: KernelConfig, spec_calib_sigma: float = 0.0) -> kernels.Kernel:
     """Construct a george kernel from a ``KernelConfig``.
 
     The full kernel is ``amp * k_wls(axes=1) * k_time(axes=0)``, where each
     axis kernel is either a normalized base kernel or a sum-of-two-scales
     of the same family.
+
+    With ``spec_calib_sigma > 0`` the inputs carry two extra columns (see
+    :func:`add_spec_calib_columns`) and a per-spectrum offset term is added:
+    points from the same spectrum share one offset with standard deviation
+    ``spec_calib_sigma`` (in scaled-y units); photometry and prediction
+    points get none.
     """
+    ndim = 4 if spec_calib_sigma > 0 else 2
     metric_t = float(np.exp(cfg.log_metric_t))
     metric_w = float(np.exp(cfg.log_metric_w))
     if cfg.additive_w:
         metric_w2 = float(np.exp(cfg.log_metric_w2))
         w_short = _sigmoid(cfg.logit_weight_w)
-        k_w = _additive_axis_kernel(cfg.name_w, metric_w, metric_w2, w_short, axis=1)
+        k_w = _additive_axis_kernel(cfg.name_w, metric_w, metric_w2, w_short, axis=1, ndim=ndim)
     else:
-        k_w = _normalized_axis_kernel(cfg.name_w, metric_w, axis=1)
+        k_w = _normalized_axis_kernel(cfg.name_w, metric_w, axis=1, ndim=ndim)
     if cfg.additive_t:
         metric_t2 = float(np.exp(cfg.log_metric_t2))
         t_short = _sigmoid(cfg.logit_weight_t)
-        k_t = _additive_axis_kernel(cfg.name_t, metric_t, metric_t2, t_short, axis=0)
+        k_t = _additive_axis_kernel(cfg.name_t, metric_t, metric_t2, t_short, axis=0, ndim=ndim)
     else:
-        k_t = _normalized_axis_kernel(cfg.name_t, metric_t, axis=0)
+        k_t = _normalized_axis_kernel(cfg.name_t, metric_t, axis=0, ndim=ndim)
 
     amp = float(np.exp(cfg.log_amp))
-    return amp * (k_w * k_t)
+    k = amp * (k_w * k_t)
+    if spec_calib_sigma > 0:
+        # is_spec_i * is_spec_j * [same spectrum id]; ids are SPEC_ID_SPACING apart
+        same_spec = kernels.ExpSquaredKernel(metric=1.0, ndim=ndim, axes=2)
+        both_spec = kernels.DotProductKernel(ndim=ndim, axes=3)
+        k = k + float(spec_calib_sigma) ** 2 * (both_spec * same_spec)
+    return k
+
+
+SPEC_ID_SPACING = 100.0
+
+
+def spectrum_ids(X: np.ndarray, point_class: np.ndarray, round_decimals: int = 9) -> np.ndarray:
+    """One integer per spectrum (its phase column), -1 for photometry."""
+    ids = np.full(X.shape[0], -1, dtype=int)
+    spec = point_class == SPEC
+    if spec.any():
+        _, inv = np.unique(np.round(X[spec, 1], round_decimals), return_inverse=True)
+        ids[spec] = inv
+    return ids
+
+
+def add_spec_calib_columns(X: np.ndarray, point_class: Optional[np.ndarray] = None) -> np.ndarray:
+    """Append (spectrum id * spacing, is_spec) columns for the per-spectrum
+    offset kernel. With ``point_class=None`` (prediction points) both are 0,
+    so predictions exclude the offsets."""
+    out = np.zeros((X.shape[0], 4), dtype=float)
+    out[:, :2] = X[:, :2]
+    if point_class is not None:
+        ids = spectrum_ids(X, point_class)
+        spec = ids >= 0
+        out[spec, 2] = ids[spec] * SPEC_ID_SPACING
+        out[spec, 3] = 1.0
+    return out
 
 
 def _prior_cache_path(workdir: str) -> str:
@@ -393,9 +434,9 @@ def build_mean(
     raise ValueError(f"unhandled mean {name!r}")
 
 
-def make_gp(cfg: KernelConfig, mean_model: Optional[Model]) -> george.GP:
+def make_gp(cfg: KernelConfig, mean_model: Optional[Model], spec_calib_sigma: float = 0.0) -> george.GP:
     """Construct (but do not compute) a george.GP from a config + mean."""
-    kernel = build_kernel(cfg)
+    kernel = build_kernel(cfg, spec_calib_sigma)
     if mean_model is None:
         return george.GP(kernel)
     return george.GP(kernel, mean=mean_model)
@@ -411,6 +452,8 @@ __all__ = [
     "effective_point_class",
     "compute_diagonal",
     "build_kernel",
+    "spectrum_ids",
+    "add_spec_calib_columns",
     "build_mean",
     "make_gp",
 ]
