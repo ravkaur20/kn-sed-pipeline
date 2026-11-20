@@ -103,6 +103,10 @@ _gp_inference_kw: dict[str, object] = dict(
     sigma_spec=0.005,
     enforce_mono_early=True,
     enforce_blue_early=True,
+    # Early-time "bluest is brightest" step: "blend" (starts at the bluest
+    # spectral wavelength, faded in at the cutoff, no step), "off", or "hard"
+    # (legacy: unblended over the whole grid; leaves a step at the cutoff).
+    early_blue_mode="blend",
     early_time_cutoff=-4.0,
     mono_floor_fraction=0.5,
     mono_min_slope=0.005,
@@ -113,7 +117,31 @@ _gp_inference_kw: dict[str, object] = dict(
     seed=0,
     predict_chunk=10000,
     predict_train=True,
+    # --- Per-spectrum calibration term (docs/PIPELINE_USER_GUIDE.md, section 7.4.1) ---
+    # Default: no extra term (spectra fit as before).
+    spec_calib_mode="none",
+    spec_calib_err_dex=0.01,
+    spec_calib_wl_scale_dex=None,
 )
+
+# Suggested alternatives: uncomment ONE block (it overrides the defaults above).
+#
+# (a) Constant offset per spectrum: about 30% fewer wiggles, photometry fit unchanged.
+# _gp_inference_kw.update(
+#     spec_calib_mode="correlated",   # one shared offset per spectrum, left out of the SED
+#     spec_calib_err_dex=0.03,        # offset size, dex (0.03 dex ~ 7%)
+#     spec_calib_wl_scale_dex=None,   # None = same offset at every wavelength
+# )
+#
+# (b) Calibration tilt per spectrum: smoothest SED, photometry fit ~6% worse (median).
+# _gp_inference_kw.update(
+#     spec_calib_mode="correlated",
+#     spec_calib_err_dex=0.03,        # size of the offset/tilt, dex
+#     spec_calib_wl_scale_dex=0.23,   # offset varies over ~0.23 dex in wavelength (x1.7)
+# )
+#
+# Other modes: spec_calib_mode="independent" adds spec_calib_err_dex in
+# quadrature to every spectral point (tested: no visible effect).
 
 GP_PRIOR_CACHE_SUBDIR: str = "diagnostics/gp_prior_cache"
 GP_PLOT_RAW_AND_PROCESSED: bool = False
@@ -486,8 +514,14 @@ def band_mjd_ranges_json_path(output_dir: str, snname: str) -> str:
 
 
 ORIGINAL_SPEC_SUBDIR: str = "1_spec_original"
-SMOOTHED_SPEC_SUBDIR: str = "2_spec_smoothed"
-SMOOTHED_SPEC_LIST_SUBDIR: str = "2_spec_lists_smoothed"
+# Output of notebook 0.3: clipped (0.2), unsmoothed spectra with flux_err and a
+# weight column (0 = clipped in 0.2). This is what step 4 reads.
+REDUCED_SPEC_SUBDIR: str = "1.6_spec_errors"
+REDUCED_SPEC_LIST_SUBDIR: str = "1.6_spec_lists_errors"
+# Step 4 input. Set to "2_spec_smoothed" / "2_spec_lists_smoothed" to go back
+# to notebook 0.1's smoothed spectra.
+SMOOTHED_SPEC_SUBDIR: str = REDUCED_SPEC_SUBDIR
+SMOOTHED_SPEC_LIST_SUBDIR: str = REDUCED_SPEC_LIST_SUBDIR
 PRESCALED_SPEC_SUBDIR: str = "2_spec_prescaled"
 PRESCALED_SPEC_LIST_SUBDIR: str = "2_spec_lists_prescaled"
 
@@ -496,6 +530,7 @@ SPEC_SCALE_MERGE_GAP_POLICY: str = "linear_bridge"
 SPEC_SCALE_GAP_LOG10: float = 0.005
 SPEC_SCALE_SAME_TIME_MINUTES: float = 5.0
 SPEC_SCALE_OVERLAP_WL_TOL_A: float = 1.0
+SPEC_SCALE_OVERLAP_BIN_A: float = 30.0  # arm-overlap fit uses inverse-variance bins this wide (Å)
 SPEC_SCALE_SAVE_DIAGNOSTICS: bool = True
 SPEC_SCALE_DIAG_SUBDIR: str = "spec_scale_diagnostics"
 SPEC_SCALE_CHAIN_MODE: bool = False
@@ -514,6 +549,17 @@ MANGLE_KERNEL_DIVIDE: int = 800
 MANGLE_GP_KERNEL_MODE: str = "fixed_5"  # "fixed_5" | "kernel_divide_scaled"
 MANGLE_GP_KERNEL_FIXED: float = 5.0  # PyCoCo parity; used when mode == "fixed_5"
 MANGLE_SEAM_REGRESSION_FACTOR: float = 1.5
+# Reduced (unsmoothed) spectra only:
+MANGLE_MAX_CLIPPED_FRAC: float = 0.5  # skip a filter if more of its band than this is clipped (weight 0)
+# Step 5 uses a filter only if the spectrum covers at least this fraction of the filter's
+# photon weight (integral of T * lambda). The synthetic flux is computed from the covered
+# part only but compared with full-band photometry, so a partly covered filter biases the
+# mask on a sloped spectrum. Coverage runs from the first to the last weight-1 pixel
+# (interior clipped regions count as covered); for an X-shooter group it is the union of
+# the arms. A spectrum left with one filter gets a constant offset. 0 turns the rule off.
+# Step 6's re-mangle does not apply it (its GP spectra span the whole SED grid).
+MANGLE_MIN_FILTER_COVERAGE: float = 0.99
+MANGLE_BIN_MIN_SNR: float = 3.0  # drop GP-grid bins below this S/N (bins use ITER_GP_GRID_DELTA)
 MANGLE_BUNDLE_STITCH_SYNPHOT: bool = True
 MANGLE_RUN_BOTH_FOR_DIAG: bool = False  # run per-arm + bundle once; diagnostics-only compare
 
@@ -530,7 +576,18 @@ DIAG_WAVELENGTH_SLICES: bool = True
 DIAG_TRAINING_GRID_PLOT: bool = True
 ITER_GP_DENSE_PREDICT_GRID: bool = True
 ITER_GP_DENSE_PREDICT_GRID_N: int = 100
-ITER_MANGLE_USE_GP_WAVELENGTH_GRID: bool = True
+ITER_MANGLE_USE_GP_WAVELENGTH_GRID: bool = True  # "legacy" remangle only
+# Step 6 update rule.
+#   "gp_correction" (default): after each GP fit, the GP spectrum at each spectrum's
+#     epoch (full SED grid) has the previous correction removed, only where that
+#     spectrum (XSHOOTER: the arms together) has data; it is mangled to the photometry
+#     as in step 5 (MANGLE_MIN_FILTER_COVERAGE, one filter -> constant) giving a new
+#     correction C over the full grid; the next GP input is the step-5 mangled spectrum
+#     plus C. XSHOOTER arms of a scale group share one C. Total correction = step-5 mask
+#     + current C, never more. On the first iteration there is no previous correction.
+#   "legacy": demangle the GP spectrum with each spectrum's total mask (held flat
+#     beyond its ends), remangle it and apply the new mask to the prescaled spectrum.
+ITER_REMANGLE_MODE: str = "gp_correction"
 GP_PREDICT_MU_KEY: str = "mu"
 ITER_GP_GRID_DELTA: float = 30.0
 ITER_GP_KERNEL_WLS_SCALE: float = 0.01

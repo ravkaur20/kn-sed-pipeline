@@ -133,31 +133,32 @@ Run step 0 whenever the photometry or any filter curve changes, and `--check` it
 
 #### 2. Spectroscopy
 
-For each transient you need:
+Spectra go through two preparation notebooks before the production scripts. **They are not smoothed**: the pipeline keeps the real pixels, clips the bad ones, and gives every pixel an uncertainty.
 
-1. A **spectrum list** file under `Inputs/Spectroscopy/1_spec_lists_original/` (or, after smoothing, under `2_spec_lists_smoothed/`).
-2. The **spectrum data files** themselves under `Inputs/Spectroscopy/1_spec_original/<SN>/` (or `2_spec_smoothed/<SN>/` after notebook 0.1).
+| Stage | Folder (`Inputs/Spectroscopy/`) | Written by |
+|-------|---------------------------------|------------|
+| Original | `1_spec_original/<SN>/`, `1_spec_lists_original/<SN>.list` | You |
+| Clipped | `1.5_spec_clipped/<SN>/`, `1.5_spec_lists_clipped/<SN>.list` | Notebook 0.2 |
+| With errors | `1.6_spec_errors/<SN>/`, `1.6_spec_lists_errors/<SN>.list` | Notebook 0.3 (input to step 4) |
+| Prescaled | `2_spec_prescaled/<SN>/`, `2_spec_lists_prescaled/<SN>.list` | Step 4 (input to steps 5 and 6) |
 
-Each list file is named `<SN>.list` and has three whitespace-separated columns: Modified Julian Date, phase in days since explosion (often filled later), and the absolute or repository-relative path to the spectrum file. Example:
+For each transient you provide:
+
+1. A **spectrum list** `Inputs/Spectroscopy/1_spec_lists_original/<SN>.list` with three whitespace-separated columns: Modified Julian Date, phase in days (often filled later), and the absolute or repository-relative path to the spectrum file.
+2. The **spectrum files** under `Inputs/Spectroscopy/1_spec_original/<SN>/`. Two layouts are read: two columns (wavelength in Å, flux; no errors), or four or more columns in the ESO/ENGRAVE style (wavelength, flux, —, flux error). **A three-column file (wavelength, flux, error) is read without its errors**; convert it to one of the two layouts first.
 
 ```text
-57983.018250	0.000000	/path/to/Inputs/Spectroscopy/2_spec_smoothed/AT2017gfo/57983.01825_LDSS3_Magellan.dat
-57983.969001	0.950751	/path/to/.../NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969001_Phase+1.43d.dat
+57983.018250	0.000000	Inputs/Spectroscopy/1_spec_original/AT2017gfo/57983.01825_LDSS3_Magellan.dat
+57983.969001	0.950751	Inputs/Spectroscopy/1_spec_original/AT2017gfo/NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969001_Phase+1.43d.dat
 ```
 
-Each spectrum file is a simple ASCII table with wavelength in angstroms, flux, and flux error. Example:
+All spectra must start in the **observed frame**, like the photometry. If a file is already de-redshifted (rest frame), list it in `REST_FRAME_FILES` in [`Codes/helper_scripts/spec_reduce.py`](Codes/helper_scripts/spec_reduce.py); notebook 0.2 multiplies its wavelengths by $(1+z)$ on load. The AT2017gfo LDSS3 spectra are listed there.
 
-```text
-#wls	flux	flux_err
-3725.6000	1.8021e-15	4.1786e-16
-3727.6000	1.7594e-15	4.1786e-16
-```
+The clipped, error and prescaled files have four columns, `wls flux flux_err weight`. `weight` is 1 for real pixels and 0 for pixels clipped in notebook 0.2 (bridged by a straight line so the file has no gaps); every later step ignores weight-0 pixels.
 
-XSHOOTER arms are typically named with `UVB_`, `VIS_`, or `NIR_` prefixes so that step 4 can group them. Single-arm instruments such as LDSS3 appear as one file per epoch.
+XSHOOTER arms are named with `UVB_`, `VIS_`, or `NIR_` prefixes so that step 4 can group them. Single-arm instruments such as LDSS3 appear as one file per epoch.
 
-**If you do not want to smooth**, skip notebook 0.1 and place both the list and the spectra under the smoothed folders (`2_spec_lists_smoothed/` and `2_spec_smoothed/`).
-
-After step 4, the pipeline writes **prescaled** spectra to `Inputs/Spectroscopy/2_spec_prescaled/<SN>/` and a matching list under `2_spec_lists_prescaled/`. Steps 5 and 6 read those by default.
+**Adding spectra later.** Add the files and list lines to the original stage, add a section for each new spectrum to notebooks 0.2 and 0.3 (copy an existing section and change `i`), then run step 4, **step 3** (which reads the spectrum epochs from step 4's list), step 5 and step 6. If the new spectra were taken at the same time as each other, refresh the scale groups with `4_Scale_spectra_KN.py --write-groups-only` first.
 
 #### 3. Supernova metadata and configuration
 
@@ -182,7 +183,8 @@ The overall flow is:
 ```mermaid
 flowchart LR
   s0["0 Mag → flux"]
-  nb01["0.1 Smooth spectra"]
+  nb02["0.2 Clip spectra"]
+  nb03["0.3 Spectral errors"]
   nb2["2 Bazin extrapolation"]
   s3["3 Light-curve GP"]
   s4["4 Prescale spectra"]
@@ -191,11 +193,12 @@ flowchart LR
   qa["7.5 Downstream QA"]
 
   s0 --> nb2
-  nb01 --> nb2 --> s3 --> s4 --> s5 --> s6 --> qa
+  nb02 --> nb03 --> s4
+  nb2 --> s3 --> s4 --> s5 --> s6 --> qa
 ```
 
 - Script **0** converts the raw AB magnitudes to band fluxes (run it, or `--check` it, first).
-- Notebooks **0.1 → 2** prepare smoothed spectra and extrapolated photometry (both as observed).
+- Notebooks **0.2 → 0.3** clip the spectra and give them uncertainties; notebook **2** prepares the extrapolated photometry (all as observed).
 - Scripts **3 → 4 → 5 → 6** are the production chain you re-run most often.
 - Notebooks **7.5** and related scripts inspect the final products.
 
@@ -223,8 +226,9 @@ If step 0 changes the raw file, everything downstream of it is stale: re-run not
 
 From Jupyter, open and run in order (after step 0):
 
-1. **`Codes/0.1_Smooth_spectra_KN.ipynb`** — Smooths raw spectra and writes `Inputs/Spectroscopy/2_spec_smoothed/<SN>/` plus `2_spec_lists_smoothed/<SN>.list`.
-2. **`Codes/2_LC_modelRising_KN_fullfit_log.ipynb`** — Reads the raw (not dust-corrected) photometry, fits early-time rising models (Bazin and related forms), commits the explosion Modified Julian Date used downstream, and writes the extrapolated light curve to `Inputs/Photometry/3_LCs_extrapolated/<SN>.dat`.
+1. **`Codes/0.2_Reduce_spectra_KN.ipynb`** — Clips each spectrum one at a time. The notebook proposes noise spikes, telluric bands and trimmed ends, and flags (but never clips) low-S/N stretches; you edit the regions as numbers (`telluric = [...]`, `manual = [...]`, `edges = (lo, hi)`) and save. Writes `1.5_spec_clipped/<SN>/`, `1.5_spec_lists_clipped/<SN>.list` and `<SN>_clip_regions.json` (your choices).
+2. **`Codes/0.3_Spectral_errors_KN.ipynb`** — Gives every pixel a flux uncertainty, without smoothing the flux: errors from the file are trusted (default), rescaled, or replaced by a kaepora-style noise estimate; spectra without errors always get the estimate. Writes `1.6_spec_errors/<SN>/` and `1.6_spec_lists_errors/<SN>.list`. (`0.1_Smooth_spectra_KN.ipynb` is the old smoothing notebook and is no longer used.)
+3. **`Codes/2_LC_modelRising_KN_fullfit_log.ipynb`** — Reads the raw (not dust-corrected) photometry, fits early-time rising models (Bazin and related forms), commits the explosion Modified Julian Date used downstream, and writes the extrapolated light curve to `Inputs/Photometry/3_LCs_extrapolated/<SN>.dat`.
 
 Confirm that `SN_EXPLOSION_MJD` in `pipeline_config.py` matches the explosion time you committed in notebook 2.
 
@@ -260,9 +264,11 @@ What each script does, in brief:
 |------|--------|--------------|--------------|
 | 0 | `0_Mag_to_Flux_KN.py` | Builds the raw photometry file from a compiled-photometry JSON (`--from-json`) or recomputes only its fluxes (`--redo-fluxes`), converting AB mags at each filter's pivot wavelength; `--check` verifies only | `Inputs/Photometry/1_LCs_flux_raw/<SN>.dat`, `Outputs/<SN>/<SN>_step0_json_rows.csv` (JSON mode) |
 | 3 | `3_LCfit_KN_log.py` | Fits each band’s light curve in log₁₀ flux with a one-dimensional Gaussian Process; evaluates the fit at every spectroscopy Modified Julian Date | `Outputs/<SN>/fitted_phot4mangling_<SN>.dat`, `fitted_phot_logspace_<SN>.dat` |
-| 4 | `4_Scale_spectra_KN.py` | Groups near-simultaneous arms and applies multiplicative flux scales so seams match | `Inputs/.../2_spec_prescaled/`, `<SN>_spec_scale_groups.json`, `<SN>_spec_scale_report.json` |
-| 5 | `5_Mangle_spectra_KN_log.py` | Builds a smooth wavelength-dependent mangling mask so synthetic photometry matches the step-3 fit; applies it to prescaled spectra | `Outputs/<SN>/mangled_spectra/`, `figs/mangle_epoch/`, `figs/mangle_nb5/` |
+| 4 | `4_Scale_spectra_KN.py` | Groups near-simultaneous arms and applies multiplicative flux scales so seams match (the arm-overlap fit uses 30 Å inverse-variance bins, not raw pixels) | `Inputs/.../2_spec_prescaled/`, `<SN>_spec_scale_groups.json`, `<SN>_spec_scale_report.json` |
+| 5 | `5_Mangle_spectra_KN_log.py` | Builds a smooth wavelength-dependent mangling mask so synthetic photometry matches the step-3 fit; applies it to prescaled spectra, then bins them (inverse variance, in linear flux) onto the GP wavelength grid before taking the log | `Outputs/<SN>/mangled_spectra/`, `figs/mangle_epoch/`, `figs/mangle_nb5/` |
 | 6 | `6_Iterative_GP_mangle_KN.py` | Fits a two-dimensional Gaussian Process on mangled spectra + photometry, extracts, demangles, remangles, and repeats until photometry closure or the iteration cap; then writes the final SED as observed and dereddened | `Outputs/<SN>/twodim_iter/`, `FINAL_spectra_2dim/as_observed/`, `FINAL_spectra_2dim/dereddened/` |
+
+> **Spectra changed? Run step 4 before step 3.** Step 3 evaluates the light-curve fit at every spectrum epoch, and it reads those epochs from step 4's list (`2_spec_lists_prescaled/<SN>.list`). After re-clipping, adding or removing spectra, run step 4, then step 3, then steps 5 and 6.
 
 The pause between the two step-4 commands is intentional. After `--write-groups-only`, open `Outputs/<SN>/<SN>_spec_scale_groups.json` and confirm that multi-arm exposures (for example XSHOOTER UVB, VIS, and NIR) are listed together with a sensible `merge_order`. Then run step 4 again without that flag to write the prescaled files.
 
@@ -339,6 +345,19 @@ with $A(\lambda)$ from the `extinction` package. Galactic dust is evaluated at t
 
 ---
 
+## Changes in the spectra-reduction branch
+
+- **Spectra are no longer smoothed.** Notebook 0.2 clips bad pixels (spikes, telluric bands, noisy ends; low S/N is only flagged) and notebook 0.3 assigns uncertainties. Clipped pixels are kept with `weight = 0` and ignored downstream.
+- **Rest-frame inputs are moved to the observed frame** on load (`REST_FRAME_FILES`); the AT2017gfo LDSS3 spectra were de-redshifted.
+- **Binning before the log.** The two-dimensional GP cannot take every raw pixel, so mangled spectra are inverse-variance binned in linear flux onto the GP wavelength grid (`ITER_GP_GRID_DELTA` = 30 Å) and only then converted to log flux. Bins below `MANGLE_BIN_MIN_SNR` are dropped; step 6 copies the binned values onto the grid nodes without interpolating, and leaves clipped gaps empty.
+- **Step 4** fits the arm overlap on binned data (raw noisy pixels biased the scale low), uses only weight-1 pixels for seams and S/N, and skips group members that are missing from the list.
+- **Synthetic photometry errors** now include the pixel width (they were too small by about $\sqrt{\Delta\lambda}$). A filter whose band is more than `MANGLE_MAX_CLIPPED_FRAC` clipped is skipped; otherwise its error is inflated by 1/(unclipped fraction).
+- **Step 6's photometry-closure check** compares only against bands observed around that epoch (it was comparing against extrapolated photometry).
+- **Early-time blue step.** The GP's "bluest is brightest" correction before the early-time cutoff left a sharp step once the SED grid reached the UV. It now defaults to a blend (`early_blue_mode="blend"`); `"off"` and the old `"hard"` are available.
+- **Optional per-spectrum calibration term** in the two-dimensional GP (offset or tilt), off by default; tests and guidance are in the [user guide §7.4.1](docs/PIPELINE_USER_GUIDE.md#741-per-spectrum-calibration-offset-or-tilt).
+
+---
+
 ## Configuration
 
 Shared defaults live in [`Codes/pipeline_config.py`](Codes/pipeline_config.py). Edit that file (or override via command-line flags where supported) for:
@@ -351,6 +370,8 @@ Shared defaults live in [`Codes/pipeline_config.py`](Codes/pipeline_config.py). 
 - Iteration cap and photometry convergence fraction (`ITER_GP_MANGLE_MAX_ITERS`, `PHOT_CONVERGENCE_FRAC`)
 - Whether remangle constraints use the full Gaussian Process wavelength grid (`ITER_MANGLE_USE_GP_WAVELENGTH_GRID`, default `True`)
 - Extinction law for the final-SED dereddening and whether to write it (`DUST_LAW`, `ITER_EXPORT_DEREDDENED_SED`); the dust parameters themselves are in `info.dat`
+- Reduced spectra: the step-4 input folders (`REDUCED_SPEC_SUBDIR`, `REDUCED_SPEC_LIST_SUBDIR`), the arm-overlap bin width (`SPEC_SCALE_OVERLAP_BIN_A`), when a filter is too clipped to constrain mangling (`MANGLE_MAX_CLIPPED_FRAC`), and the GP-grid binning of mangled spectra (`ITER_GP_GRID_DELTA`, `MANGLE_BIN_MIN_SNR`)
+- Two-dimensional GP options in `GP_INFERENCE_KWARGS`, including the early-time "bluest is brightest" step (`early_blue_mode`, default `"blend"`) and an optional per-spectrum calibration offset or tilt (`spec_calib_mode`, `spec_calib_err_dex`, `spec_calib_wl_scale_dex`; off by default, suggested settings commented in the file). See the [user guide §7.4.1](docs/PIPELINE_USER_GUIDE.md#741-per-spectrum-calibration-offset-or-tilt) before turning these on
 
 Band colors and exclusions for plots are in [`Codes/filter_plot_config.json`](Codes/filter_plot_config.json).
 

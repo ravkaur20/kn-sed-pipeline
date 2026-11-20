@@ -9,6 +9,7 @@ if ! command -v pandoc >/dev/null 2>&1; then
   exit 1
 fi
 pandoc "$MD" -o "$PDF" \
+  --resource-path="$ROOT/docs" \
   --pdf-engine=pdflatex \
   --toc --toc-depth=3 \
   -V geometry:margin=1in \

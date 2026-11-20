@@ -118,10 +118,12 @@ class TestBundleManglingMask(unittest.TestCase):
             bft.side_effect = _trapz
             row = phot.iloc[0]
             out_u = compute_mangling_mask(
-                spec_u, row, avail, filt, filter_path="/tmp/", snname="T"
+                spec_u, row, avail, filt, filter_path="/tmp/", snname="T",
+                min_filter_coverage=0.0,  # mocked filter; pooling only
             )
             out_v = compute_mangling_mask(
-                spec_v, row, avail, filt, filter_path="/tmp/", snname="T"
+                spec_v, row, avail, filt, filter_path="/tmp/", snname="T",
+                min_filter_coverage=0.0,
             )
             self.assertIsNotNone(out_u)
             self.assertIsNotNone(out_v)
@@ -133,6 +135,7 @@ class TestBundleManglingMask(unittest.TestCase):
                 filter_path="/tmp/",
                 snname="T",
                 member_mjd={"UVB_a.dat": 58000.0, "VIS_a.dat": 58000.0},
+                min_filter_coverage=0.0,
             )
         self.assertIsNotNone(bundle)
         masks, _, meta = bundle
