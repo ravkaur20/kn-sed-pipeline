@@ -22,19 +22,24 @@ from gp_surface_extract import (
 )
 from iter_gp_grid import load_predictions_npz, run_iter_gp_fit
 from mangle_spectra_log import (
+    GP_GRID_BINNED_TAG,
     band_flux_trapz,
     bin_mangled_to_gp_grid,
     build_mangle_group_map,
     gp_grid_for_spectra,
     spec_weights_or_none,
+    spectrum_data_interval,
     compute_mangling_mask,
     compute_mangling_mask_bundle,
     load_linear_spectrum,
     load_mangled_spectrum,
     save_mangled_spectrum,
     _avail_filters_from_phot4mangling,
+    _collect_mangle_constraints,
+    _fit_mangling_mask_on_grid,
     _mangled_output_basename,
     _phot_row_for_mjd,
+    _resolve_filter_path,
 )
 from photometry_filter_utils import load_band_mjd_ranges_json
 from spectra_pre_scale import load_scale_groups_json, load_spec_list
@@ -430,6 +435,251 @@ def remangle_spectra(
     return {"masks": masks_out, "report": report, "diag_groups": diag_groups}
 
 
+# ---------------------------------------------------------------------------
+# "gp_correction" update rule (ITER_REMANGLE_MODE)
+# ---------------------------------------------------------------------------
+def remangle_mode() -> str:
+    mode = str(getattr(pconf, "ITER_REMANGLE_MODE", "gp_correction")).strip().lower()
+    if mode not in ("gp_correction", "legacy"):
+        raise ValueError("ITER_REMANGLE_MODE must be 'gp_correction' or 'legacy', got %r" % mode)
+    return mode
+
+
+def mangle_units(
+    spec_entries: Sequence[Any],
+    *,
+    output_dir: str,
+    snname: str,
+    bundle_aware: Optional[bool] = None,
+    groups_json: Optional[str] = None,
+) -> list[tuple[str, list[Any]]]:
+    """``[(unit_id, entries)]``: one unit per scale group (XSHOOTER arms of a night)
+    when bundle-aware, otherwise one per spectrum. Each unit gets one correction."""
+    bundle_aware = (
+        bool(bundle_aware)
+        if bundle_aware is not None
+        else bool(getattr(pconf, "MANGLE_BUNDLE_AWARE", False))
+    )
+    grouped: dict[str, list[Any]] = {}
+    if bundle_aware:
+        gj = pconf.resolve_mangle_groups_json(output_dir.rstrip(os.sep) + os.sep, snname, groups_json)
+        if os.path.isfile(gj):
+            _, groups = load_scale_groups_json(gj)
+            _, grouped = build_mangle_group_map(spec_entries, groups)
+    in_group = {e.basename for members in grouped.values() for e in members}
+    units = [(gid, sorted(members, key=lambda e: float(e.mjd))) for gid, members in grouped.items()]
+    units += [(e.basename, [e]) for e in spec_entries if e.basename not in in_group]
+    return sorted(units, key=lambda u: min(float(e.mjd) for e in u[1]))
+
+
+def _inside_intervals(wls: np.ndarray, intervals: Sequence[tuple[float, float]]) -> np.ndarray:
+    w = np.asarray(wls, dtype=float)
+    inside = np.zeros(w.shape, dtype=bool)
+    for lo, hi in intervals:
+        inside |= (w >= lo) & (w <= hi)
+    return inside
+
+
+def _band_mean_log_err(
+    filt: str,
+    wls: np.ndarray,
+    log_err: np.ndarray,
+    *,
+    filter_path: str,
+    snname: str,
+    csp_sne: Sequence[str],
+) -> float:
+    """T*lambda-weighted mean of the GP's log10 error over a filter. GP errors are
+    strongly correlated in wavelength, so the band average, not a pixel sum, is the
+    synthetic-flux error."""
+    fp = _resolve_filter_path(filter_path, filt, snname, csp_sne)
+    f = np.genfromtxt(fp, dtype=None, encoding="utf-8", names=["wls", "flux"])
+    fw = np.asarray(f["wls"], dtype=float)
+    order = np.argsort(fw)
+    t = np.interp(wls, fw[order], np.clip(np.asarray(f["flux"], dtype=float)[order], 0.0, None),
+                  left=0.0, right=0.0)
+    a = t * wls
+    if np.sum(a) <= 0.0:
+        return 0.0
+    return float(np.sum(a * log_err) / np.sum(a))
+
+
+def save_gp_correction(path: str, wls: np.ndarray, corr: np.ndarray, corr_std: np.ndarray) -> None:
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write("#wls\tcorrection\tcorrection_std\n")
+        for w, c, s in zip(wls, corr, corr_std):
+            fh.write("%E\t%E\t%E\n" % (w, c, s))
+
+
+def load_gp_correction(path: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    d = np.atleast_2d(np.loadtxt(path, comments="#"))
+    return d[:, 0], d[:, 1], d[:, 2]
+
+
+def _gp_correction_basename(mjd: float) -> str:
+    return "%.6f_gp_correction.txt" % float(mjd)
+
+
+def gp_correction_remangle(
+    snname: str,
+    *,
+    units: Sequence[tuple[str, Sequence[Any]]],
+    extractions_by_bn: Mapping[str, Mapping[str, Any]],
+    prev_corrections: Mapping[str, tuple[np.ndarray, np.ndarray, np.ndarray]],
+    step5_dir: str,
+    prescaled_paths: Mapping[str, str],
+    mangled_out_dir: str,
+    corrections_out_dir: str,
+    phot4mangling,
+    avail_filters: Sequence[str],
+    filter_mjd_dict: Mapping[str, Mapping[str, float]],
+    filter_path: str,
+    fine_step_log10: float,
+    csp_sne: Sequence[str] = (),
+    min_filter_coverage: Optional[float] = None,
+) -> dict[str, Any]:
+    """One iteration of the ``gp_correction`` rule (see ``ITER_REMANGLE_MODE``).
+
+    For each unit (a spectrum, or the XSHOOTER arms of a scale group together):
+
+    1. take the GP spectrum at the unit's epoch (full SED grid, interpolated in
+       log flux onto a fine log-wavelength grid with step ``fine_step_log10``);
+    2. remove the previous correction ``prev_corrections[unit]`` only where the
+       unit has data (first to last weight-1 pixel of each member);
+    3. mangle that spectrum to the photometry as step 5 does (filters it covers
+       to ``min_filter_coverage``, one filter -> constant): the new correction C
+       on the full grid; constraint errors add the GP's band-averaged error;
+    4. write each member's next GP input: its step-5 mangled spectrum + C at its
+       nodes (error: in quadrature with C's std), mask column = step-5 mask + C.
+
+    Returns ``masks`` (total correction on each prescaled grid, for the closure
+    check), ``corrections`` {unit_id: (wls, C, C_std)} and a ``report``.
+    """
+    import GP2dim_utils as GP2dim
+
+    masks_out: dict[str, np.ndarray] = {}
+    corrections: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
+    report: dict[str, Any] = {"mode": "gp_correction", "units": [], "failed": []}
+    os.makedirs(mangled_out_dir, exist_ok=True)
+
+    for unit_id, entries in units:
+        members = [
+            e for e in entries
+            if e.basename in extractions_by_bn
+            and os.path.isfile(os.path.join(step5_dir, _mangled_output_basename(float(e.mjd))))
+        ]
+        if not members:
+            continue
+        ref = members[0]
+        ex = extractions_by_bn[ref.basename]["extracted"]
+        lw_c = np.asarray(ex["log10_wls"], dtype=float)
+        lf_c = np.asarray(ex["log10_flux"], dtype=float)
+        le_c = np.asarray(ex["log10_fluxerr"], dtype=float)
+        if lw_c.size != lf_c.size:
+            lw_c = np.log10(np.asarray(ex["target_wls_linear"], dtype=float))
+        ok = np.isfinite(lw_c) & np.isfinite(lf_c) & np.isfinite(le_c)
+        lw_c, lf_c, le_c = lw_c[ok], lf_c[ok], le_c[ok]
+        if lw_c.size < 2:
+            report["failed"].append({"unit": unit_id, "reason": "empty_gp_extraction"})
+            continue
+        lw_f = np.arange(lw_c.min(), lw_c.max() + 0.5 * fine_step_log10, fine_step_log10)
+        lw_f = lw_f[lw_f <= lw_c.max() + 1e-12]
+        wls_f = np.power(10.0, lw_f)
+        lf_f = np.interp(lw_f, lw_c, lf_c)
+        le_f = np.interp(lw_f, lw_c, le_c)
+
+        pres = {e.basename: load_linear_spectrum(prescaled_paths[e.basename]) for e in members}
+        intervals = [
+            iv for iv in (spectrum_data_interval(p["wls"], spec_weights_or_none(p)) for p in pres.values())
+            if iv is not None
+        ]
+        inside = _inside_intervals(wls_f, intervals)
+        if unit_id in prev_corrections:
+            pw, pc, _ = prev_corrections[unit_id]
+            c_prev = np.interp(lw_f, np.log10(pw), pc)
+        else:
+            c_prev = np.zeros_like(lw_f)
+        dem_f = lf_f - np.where(inside, c_prev, 0.0)
+
+        row = _phot_row_for_mjd(phot4mangling, float(ref.mjd))
+        flux_f = np.power(10.0, dem_f)
+        cons = _collect_mangle_constraints(
+            wls_f, flux_f, np.zeros_like(flux_f), row, avail_filters, filter_mjd_dict,
+            filter_path=filter_path, snname=snname, csp_sne=csp_sne,
+            min_filter_coverage=min_filter_coverage,
+        )
+        if cons is None:
+            report["failed"].append({"unit": unit_id, "reason": "no_phot_constraints",
+                                     "members": [e.basename for e in members]})
+            corr, corr_std = np.zeros_like(lw_f), np.zeros_like(lw_f)
+            used: list[str] = []
+            fit_meta: dict[str, Any] = {}
+        else:
+            ld, le, lweff, used = cons
+            gp_err = np.array([
+                _band_mean_log_err(f, wls_f, le_f, filter_path=filter_path, snname=snname, csp_sne=csp_sne)
+                for f in used
+            ])
+            le = np.sqrt(np.asarray(le, dtype=float) ** 2 + gp_err ** 2)
+            corr, corr_std, fit_meta = _fit_mangling_mask_on_grid(ld, le, lweff, wls_f)
+        corrections[unit_id] = (wls_f, corr, corr_std)
+        save_gp_correction(
+            os.path.join(corrections_out_dir, _gp_correction_basename(float(ref.mjd))),
+            wls_f, corr, corr_std,
+        )
+
+        for e in members:
+            s5_path = os.path.join(step5_dir, _mangled_output_basename(float(e.mjd)))
+            log_spec, m5 = load_mangled_spectrum(s5_path)
+            with open(s5_path, encoding="utf-8") as fh:
+                binned = GP_GRID_BINNED_TAG in fh.readline()
+            wn = GP2dim.mangled_wls_linear_angstrom(log_spec)
+            lwn = np.log10(wn)
+            c_node = np.interp(lwn, lw_f, corr)
+            s_node = np.interp(lwn, lw_f, corr_std)
+            m5_node = np.zeros_like(c_node) if m5 is None else np.asarray(m5, dtype=float)
+            save_mangled_spectrum(
+                os.path.join(mangled_out_dir, _mangled_output_basename(float(e.mjd))),
+                wn,
+                np.asarray(log_spec["flux"], dtype=float) + c_node,
+                np.sqrt(np.asarray(log_spec["fluxerr"], dtype=float) ** 2 + s_node ** 2),
+                m5_node + c_node,
+                gp_grid_binned=binned,
+            )
+            lwp = np.log10(np.asarray(pres[e.basename]["wls"], dtype=float))
+            masks_out[e.basename] = np.interp(lwp, lwn, m5_node) + np.interp(lwp, lw_f, corr)
+
+        report["units"].append({
+            "unit": unit_id,
+            "members": [e.basename for e in members],
+            "mjd": float(ref.mjd),
+            "used_filters": list(used),
+            "n_filters": len(used),
+            "data_intervals": [list(iv) for iv in intervals],
+            "correction_median": float(np.median(corr)),
+            **{k: v for k, v in fit_meta.items() if k in ("constant_mask", "norm_diff")},
+        })
+
+    return {"masks": masks_out, "corrections": corrections, "report": report}
+
+
+def previous_correction_on(
+    wls: np.ndarray,
+    unit_id: Optional[str],
+    prev_corrections: Mapping[str, tuple[np.ndarray, np.ndarray, np.ndarray]],
+    intervals: Sequence[tuple[float, float]],
+) -> np.ndarray:
+    """Previous correction on ``wls``, zero outside the unit's data (what step 2 of
+    ``gp_correction_remangle`` removes); zero on the first iteration."""
+    w = np.asarray(wls, dtype=float)
+    if unit_id is None or unit_id not in prev_corrections:
+        return np.zeros_like(w)
+    pw, pc, _ = prev_corrections[unit_id]
+    c = np.interp(np.log10(w), np.log10(pw), pc)
+    return np.where(_inside_intervals(w, intervals), c, 0.0)
+
+
 def run_iterative_gp_mangle(
     snname: str,
     *,
@@ -485,7 +735,14 @@ def run_iterative_gp_mangle(
         else bool(getattr(pconf, "ITER_GP_WARM_START", False))
     )
     mu_key = str(getattr(pconf, "GP_PREDICT_MU_KEY", "mu"))
+    rmode = remangle_mode()
     use_gp_wl = bool(getattr(pconf, "ITER_MANGLE_USE_GP_WAVELENGTH_GRID", True))
+    if rmode == "gp_correction":
+        use_gp_wl = True          # corrections are measured on the full SED grid
+        if not seed_from_nb5:
+            raise ValueError("ITER_REMANGLE_MODE='gp_correction' needs the step-5 mangled "
+                             "spectra (seed_from_nb5=True): each iteration adds its "
+                             "correction to them.")
     wl_grid_mode = "gp" if use_gp_wl else "prescaled"
 
     # Read the dust parameters up front so a bad info.dat fails before the GP runs.
@@ -549,6 +806,30 @@ def run_iterative_gp_mangle(
     prev_masks_by_bn: dict[str, np.ndarray] = {}
     converged = False
     stop_reason = "max_iters"
+
+    # gp_correction rule: units (XSHOOTER arms of a night together), their data
+    # ranges, the fine grid for synthetic photometry, and the running correction
+    units: list[tuple[str, list[Any]]] = []
+    unit_of: dict[str, tuple[str, list[tuple[float, float]]]] = {}
+    prev_corrections: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
+    fine_step = 0.0
+    if rmode == "gp_correction":
+        units = mangle_units(spec_entries, output_dir=out_root, snname=snname,
+                             bundle_aware=bundle_aware)
+        _pre_all = {e.basename: load_linear_spectrum(e.path) for e in spec_entries}
+        for uid, members in units:
+            ivs = [
+                iv for iv in (
+                    spectrum_data_interval(_pre_all[m.basename]["wls"], spec_weights_or_none(_pre_all[m.basename]))
+                    for m in members
+                ) if iv is not None
+            ]
+            for m in members:
+                unit_of[m.basename] = (uid, ivs)
+        _g = gp_grid_for_spectra(list(_pre_all.values()))
+        fine_step = float(_g[1] - _g[0]) if _g.size > 1 else 0.0015
+        summary["remangle_mode"] = rmode
+        summary["units"] = [[uid, [m.basename for m in members]] for uid, members in units]
 
     for k in range(max_iters):
         iter_dir = pconf.twodim_iter_dir(out_root, snname, mode, k)
@@ -649,7 +930,12 @@ def run_iterative_gp_mangle(
             )
             if wls_extract.size != ex["log10_flux"].size:
                 wls_extract = np.power(10.0, ex["log10_wls"])
-            if use_gp_wl:
+            if rmode == "gp_correction":
+                # what this iteration removes: the previous correction, only
+                # where the spectrum (or its XSHOOTER night) has data
+                uid, ivs = unit_of.get(bn, (None, []))
+                mask_on_extract = previous_correction_on(wls_extract, uid, prev_corrections, ivs)
+            elif use_gp_wl:
                 mask_on_extract = interpolate_mangling_mask_to_wls(
                     mask, mask_wls, wls_extract
                 )
@@ -705,19 +991,40 @@ def run_iterative_gp_mangle(
         next_mangled = os.path.join(
             pconf.twodim_iter_dir(out_root, snname, mode, next_iter), "mangled_spectra"
         )
-        rem = remangle_spectra(
-            snname,
-            coco_path=coco_path,
-            output_dir=out_root,
-            demangled_specs=demangled_paths,
-            prescaled_paths=prescaled_paths,
-            mangled_out_dir=next_mangled,
-            bundle_aware=bundle_aware,
-            filter_path=filt_root,
-            csp_sne=csp_sne,
-            photometry_target=pt,
-            use_gp_wavelength_grid=use_gp_wl,
-        )
+        if rmode == "gp_correction":
+            rem = gp_correction_remangle(
+                snname,
+                units=units,
+                extractions_by_bn={item["basename"]: item for item in extractions},
+                prev_corrections=prev_corrections,
+                step5_dir=iter0_mangled,
+                prescaled_paths=prescaled_paths,
+                mangled_out_dir=next_mangled,
+                corrections_out_dir=os.path.join(iter_dir, "corrections"),
+                phot4mangling=phot4mangling,
+                avail_filters=avail_filters,
+                filter_mjd_dict=filter_mjd_dict,
+                filter_path=filt_root,
+                fine_step_log10=fine_step,
+                csp_sne=csp_sne,
+            )
+            prev_corrections = dict(rem["corrections"])
+            with open(os.path.join(iter_dir, "corrections", "report.json"), "w", encoding="utf-8") as fh:
+                json.dump(rem["report"], fh, indent=1)
+        else:
+            rem = remangle_spectra(
+                snname,
+                coco_path=coco_path,
+                output_dir=out_root,
+                demangled_specs=demangled_paths,
+                prescaled_paths=prescaled_paths,
+                mangled_out_dir=next_mangled,
+                bundle_aware=bundle_aware,
+                filter_path=filt_root,
+                csp_sne=csp_sne,
+                photometry_target=pt,
+                use_gp_wavelength_grid=use_gp_wl,
+            )
         new_masks = rem["masks"]
         phot_metrics = compute_photometry_closure(
             prescaled_paths,

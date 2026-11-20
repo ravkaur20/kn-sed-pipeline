@@ -555,7 +555,7 @@ python 5_Mangle_spectra_KN_log.py --snname AT2017gfo --mangle-kernel-mode kernel
 - A spectrum left with a single usable filter gets a **constant** mask equal to that filter's offset (no wavelength dependence). With two or more the usual Matérn mask is fit. A spectrum with none is reported as `no_phot_constraints`.
 - The mangle report (`<SN>_mangle_report.json`) lists, per spectrum or group, `filter_coverage` for the filters used, and for single spectra `skipped_low_coverage` and `constant_mask`.
 - Set `MANGLE_MIN_FILTER_COVERAGE = 0` to use every overlapping filter (the behaviour before November 2026).
-- Step 6's re-mangle does not apply the rule: its spectra are GP extractions that span the whole SED grid.
+- Step 6 (`ITER_REMANGLE_MODE="gp_correction"`) applies the same rule to the GP spectrum, which spans the whole SED grid, so there every filter inside the grid counts as covered. The `"legacy"` remangle does not apply it.
 
 Fewer filters per spectrum (for AT2017gfo, e.g. 3 to 1 for LDSS3 57983.02788) usually means a flatter mask. A correction that changes slowly with wavelength across a whole night can then be missed by a spectrum that covers only part of it; compare the per-filter offsets in the report or the epoch plots.
 
@@ -565,13 +565,26 @@ If `Outputs/<SN>/<SN>_band_mjd_ranges.json` is missing, step 5 builds it from `I
 
 ### 5.4 `6_Iterative_GP_mangle_KN.py`
 
-**Science role.** Outer loop: fit a two-dimensional Gaussian Process on mangled spectra plus photometry; extract the surface at observed spectroscopy epochs; remove the current mangling mask (demangle); build a new mask from demangled Gaussian Process spectra versus the light-curve fit (often on the full Gaussian Process wavelength grid); apply the new mask to **prescaled originals**; repeat until photometry closure or the iteration cap.
+**Science role.** Outer loop: fit a two-dimensional Gaussian Process on mangled spectra plus photometry, measure how far the surface misses the photometry at each spectroscopy epoch, correct the spectra for that, and repeat until photometry closure or the iteration cap.
+
+**Update rule (`ITER_REMANGLE_MODE="gp_correction"`, default).** Each spectrum's total correction is its step-5 mask plus **one** step-6 correction $C$, never more. After the GP fit of iteration $k$:
+
+1. Take the GP spectrum at the spectrum's epoch over the whole SED grid (1600–25000 Å for AT2017gfo), interpolated in log flux onto the fine step-5 grid (`ITER_GP_GRID_DELTA`) so filter curves are well sampled.
+2. Remove the previous correction $C_{k-1}$, but only where the spectrum has data (first to last unclipped pixel). Outside that range the GP never received $C_{k-1}$, so it is not removed there; removing it would make the correction outside the data grow every iteration. On the first iteration there is no previous correction, so the GP spectrum is used as is.
+3. Mangle that spectrum to the light-curve fit exactly as step 5 does: every band whose MJD window contains the epoch and that the GP spectrum covers to `MANGLE_MIN_FILTER_COVERAGE` (so infrared bands count for an optical spectrum, and vice versa), one band giving a constant. Each band's error adds the GP's own error averaged over the band. The result is the new correction $C_k$ over the whole grid.
+4. The next GP input is the **step-5 mangled spectrum plus $C_k$**, added at its GP-grid nodes (errors add $C_k$'s uncertainty in quadrature); the mask column holds step-5 mask + $C_k$.
+
+**XSHOOTER.** The arms of a scale group (one night) are one unit: one GP spectrum, one correction $C$, applied to all arms. "Where the spectrum has data" is the union of the arms' ranges.
+
+$C_k = C_{k-1} + (\text{photometry} - \text{GP})$ in effect, so the corrections stop changing once the surface matches the photometry. Where the GP bends toward one of several near-simultaneous spectra, the spectra receive different corrections that pull each toward the photometry; where the GP averages them, they keep their step-5 offsets and scatter about the surface.
+
+`ITER_REMANGLE_MODE="legacy"` keeps the earlier rule (demangle the GP spectrum with each spectrum's total mask, held constant beyond its ends; remangle; apply to the prescaled spectrum). That rule took every XSHOOTER band constraint from one arm (the NIR file, by alphabetical order) and applied one mask to all arms, which made the masks alternate between two states from one iteration to the next; use it only to reproduce earlier runs.
 
 **Implementation.** [`helper_scripts/iterative_gp_mangle.py`](../Codes/helper_scripts/iterative_gp_mangle.py), with Gaussian Process fitting via [`iter_gp_grid.py`](../Codes/helper_scripts/iter_gp_grid.py) and the vendored [`twodim_gp/`](../Codes/helper_scripts/twodim_gp/) package.
 
 **Inputs.** Step 5 mangled spectra (seed for `iter_00`), both fitted photometry tables, prescaled list and files, groups JSON, filters.
 
-**Outputs.** `Outputs/<SN>/twodim_iter/` including per-iteration mangled spectra, predictions, figures, metrics, and `final/`. At the end it copies the final SED to `FINAL_spectra_2dim/as_observed/` and writes the dereddened SED to `FINAL_spectra_2dim/dereddened/` (§3.4). Iteration folders and `predictions.npz` stay as observed.
+**Outputs.** `Outputs/<SN>/twodim_iter/` including per-iteration mangled spectra, predictions, figures, metrics, and `final/`. In `gp_correction` mode, `iter_KK/corrections/` holds the correction computed from that iteration's GP (`<mjd>_gp_correction.txt`: wavelength, correction, uncertainty; one file per spectrum or XSHOOTER night) and `report.json` (bands used per unit); `iter_KK/demangled/` holds the GP spectrum with the previous correction removed. At the end it copies the final SED to `FINAL_spectra_2dim/as_observed/` and writes the dereddened SED to `FINAL_spectra_2dim/dereddened/` (§3.4). Iteration folders and `predictions.npz` stay as observed.
 
 | Flag | Effect |
 |------|--------|
@@ -596,7 +609,7 @@ python 6_Iterative_GP_mangle_KN.py --snname AT2017gfo --max-iters 20 --verbose
 
 Each re-mangle bins onto the same grid as step 5, and the grid preparation copies binned values onto the grid nodes without interpolating, so a clipped gap stays empty instead of being filled. The photometry-closure check compares only bands observed around each epoch (inside that band's MJD range).
 
-Default `ITER_MANGLE_USE_GP_WAVELENGTH_GRID=True` means remangle constraints are built from a demangled Gaussian Process SED sampled across the **full training wavelength range**, not only each arm’s native span. The new mask is still applied to the original prescaled wavelength grids.
+In `legacy` mode, `ITER_MANGLE_USE_GP_WAVELENGTH_GRID=True` means remangle constraints are built from a demangled Gaussian Process SED sampled across the **full training wavelength range**, not only each arm’s native span; the new mask is applied to the original prescaled wavelength grids. `gp_correction` mode always works on the full grid.
 
 ### 5.5 `clear_sn_run.py`
 
@@ -671,7 +684,7 @@ Edit [`Codes/pipeline_config.py`](../Codes/pipeline_config.py) or override via c
 | `MANGLE_BUNDLE_STITCH_SYNPHOT` | `True` | Integrate filters on stitched multi-arm spectra |
 | `MANGLE_RUN_BOTH_FOR_DIAG` | `False` | Turn on to compare per-arm versus bundle once |
 | `MANGLE_MAX_CLIPPED_FRAC` | `0.5` | Skip a filter whose band is more than this fraction clipped |
-| `MANGLE_MIN_FILTER_COVERAGE` | `0.99` | Step 5 uses a filter only if the spectrum (XSHOOTER: the arms together) covers this fraction of its photon weight; one usable filter gives a constant mask; `0` uses every overlapping filter; not applied in step 6 |
+| `MANGLE_MIN_FILTER_COVERAGE` | `0.99` | Step 5 uses a filter only if the spectrum (XSHOOTER: the arms together) covers this fraction of its photon weight; one usable filter gives a constant mask; `0` uses every overlapping filter; step 6 measures it on the GP spectrum (`gp_correction` mode) |
 | `MANGLE_BIN_MIN_SNR` | `3.0` | Drop GP-grid bins of a mangled spectrum below this S/N |
 
 ### 7.4 Iterative two-dimensional Gaussian Process (step 6)
@@ -681,7 +694,8 @@ Edit [`Codes/pipeline_config.py`](../Codes/pipeline_config.py) or override via c
 | `ITER_GP_MANGLE_MAX_ITERS` | `20` | Lower for debugging; raise only if convergence is slow but improving |
 | `PHOT_CONVERGENCE_FRAC` | `0.05` | Primary stop: max relative synthetic photometry error |
 | `MASK_CONVERGENCE_EPS` | `1e-4` | Secondary logging on mask change |
-| `ITER_MANGLE_USE_GP_WAVELENGTH_GRID` | `True` | Full-wavelength remangle constraints (recommended) |
+| `ITER_REMANGLE_MODE` | `"gp_correction"` | Step 6 update rule (§5.4): step-5 mangled spectrum + one GP-based correction, XSHOOTER arms together; `"legacy"` only to reproduce earlier runs |
+| `ITER_MANGLE_USE_GP_WAVELENGTH_GRID` | `True` | `legacy` mode only: full-wavelength remangle constraints |
 | `ITER_GP_SEED_FROM_NB5` | `True` | Seed `iter_00` from step 5 mangled spectra |
 | `ITER_GP_WARM_START` | `True` | Reuse hyperparameters between iterations |
 | `ITER_GP_EXPORT_FULL_GP` | `True` | Write extended spectra under `full_gp/` |

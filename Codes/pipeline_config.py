@@ -576,7 +576,18 @@ DIAG_WAVELENGTH_SLICES: bool = True
 DIAG_TRAINING_GRID_PLOT: bool = True
 ITER_GP_DENSE_PREDICT_GRID: bool = True
 ITER_GP_DENSE_PREDICT_GRID_N: int = 100
-ITER_MANGLE_USE_GP_WAVELENGTH_GRID: bool = True
+ITER_MANGLE_USE_GP_WAVELENGTH_GRID: bool = True  # "legacy" remangle only
+# Step 6 update rule.
+#   "gp_correction" (default): after each GP fit, the GP spectrum at each spectrum's
+#     epoch (full SED grid) has the previous correction removed, only where that
+#     spectrum (XSHOOTER: the arms together) has data; it is mangled to the photometry
+#     as in step 5 (MANGLE_MIN_FILTER_COVERAGE, one filter -> constant) giving a new
+#     correction C over the full grid; the next GP input is the step-5 mangled spectrum
+#     plus C. XSHOOTER arms of a scale group share one C. Total correction = step-5 mask
+#     + current C, never more. On the first iteration there is no previous correction.
+#   "legacy": demangle the GP spectrum with each spectrum's total mask (held flat
+#     beyond its ends), remangle it and apply the new mask to the prescaled spectrum.
+ITER_REMANGLE_MODE: str = "gp_correction"
 GP_PREDICT_MU_KEY: str = "mu"
 ITER_GP_GRID_DELTA: float = 30.0
 ITER_GP_KERNEL_WLS_SCALE: float = 0.01

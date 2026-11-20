@@ -286,7 +286,7 @@ $$
 \frac{\int_{\lambda_{\rm lo}}^{\lambda_{\rm hi}} T(\lambda)\,\lambda\,d\lambda}{\int T(\lambda)\,\lambda\,d\lambda} \ge c_{\min},
 $$
 
-where $[\lambda_{\rm lo},\lambda_{\rm hi}]$ runs from the first to the last unclipped pixel (interior clipped regions, bridged in notebook 0.2, count as covered). The reason is that the sums above run only over the spectrum's pixels, so for a partly covered band $F_{\mathrm{band}}$ is the mean over the covered part, while the photometry it is compared with (§7.3) is the mean over the whole band. The two agree only for a flat spectrum: for $F_\lambda\propto\lambda^{-3}$ and a box filter covered over its blue half, the offset is about 0.08 dex. Before this rule (any overlapping band used), about a third of AT2017gfo's constraints covered less than 90% of their band, and spectra taken within an hour of each other received masks up to 0.3 dex apart. Setting $c_{\min}=0$ restores that behaviour. The rule applies to step 5 only; step 6's remangle (§9) works on GP extractions that span the whole SED grid.
+where $[\lambda_{\rm lo},\lambda_{\rm hi}]$ runs from the first to the last unclipped pixel (interior clipped regions, bridged in notebook 0.2, count as covered). The reason is that the sums above run only over the spectrum's pixels, so for a partly covered band $F_{\mathrm{band}}$ is the mean over the covered part, while the photometry it is compared with (§7.3) is the mean over the whole band. The two agree only for a flat spectrum: for $F_\lambda\propto\lambda^{-3}$ and a box filter covered over its blue half, the offset is about 0.08 dex. Before this rule (any overlapping band used), about a third of AT2017gfo's constraints covered less than 90% of their band, and spectra taken within an hour of each other received masks up to 0.3 dex apart. Setting $c_{\min}=0$ restores that behaviour. Step 6 (§9) applies the same rule to GP spectra, which span the whole SED grid.
 
 ## 7.3 Log offsets and the mangling GP
 
@@ -422,45 +422,45 @@ These corrections define the exported surface key `mu` (as opposed to raw `mu_ra
 
 ## 9.1 Motivation
 
-A single mangling pass (step 5) uses only the native spectrum. Once a two-dimensional GP exists, a better estimate of the **unmangled** SED at each epoch is available across a wider wavelength range. Feeding that estimate back into mangling improves consistency between the surface and the photometry constraints. The outer loop repeats until synthetic photometry of **prescaled data plus the new mask** matches the light-curve GP within tolerance.
+A single mangling pass (step 5) uses only the native spectrum and the bands it covers. Once a two-dimensional GP exists, the surface at each spectroscopy epoch spans the whole SED grid, so all bands observed at that epoch can be compared with it. The outer loop measures how far the surface misses the photometry at each epoch, corrects the spectra for that, and repeats until synthetic photometry of the corrected spectra matches the light-curve GP within tolerance.
 
-## 9.2 Loop structure
+## 9.2 Loop structure (`ITER_REMANGLE_MODE = "gp_correction"`)
 
-Driver: `run_iterative_gp_mangle` in `helper_scripts/iterative_gp_mangle.py`.
+Driver: `run_iterative_gp_mangle` in `helper_scripts/iterative_gp_mangle.py`; the update is `gp_correction_remangle`.
 
-For iteration $K = 0, 1, \ldots$:
+Corrections are made per **unit**: a single spectrum, or the arms of an XSHOOTER scale group together. Let $m_5(\lambda)$ be a unit's step-5 mask, $D$ its data range (first to last unclipped pixel; for XSHOOTER the union of the arms), and $C_k(\lambda)$ the step-6 correction after iteration $k$, with $C_{-1}\equiv 0$. For iteration $k = 0, 1, \ldots$:
 
-1. **Fit** the two-dimensional GP on `iter_K/mangled_spectra` (seeded from step 5 mangled spectra when $K=0$).
-2. **Extract** the GP mean at each observed spectroscopy epoch. With default `ITER_MANGLE_USE_GP_WAVELENGTH_GRID=True`, extraction is sampled onto the GP’s log-uniform wavelength grid spanning the full training $\lambda$ range.
-3. **Demangle.** If $m_{\mathrm{old}}(\lambda)$ is the mask currently associated with the mangled training spectrum,
+1. **Fit** the two-dimensional GP on `iter_k/mangled_spectra` (`iter_0`: the step-5 mangled spectra).
+2. **Extract** the GP mean $\log_{10}F_{\mathrm{GP}}(\lambda)$ at the unit's epoch on the GP's log-uniform grid over the whole SED range, and interpolate it (in log flux) onto the finer step-5 grid so that filter curves are well sampled.
+3. **Remove the previous correction where it was applied:**
    $$
    \log_{10} F_{\mathrm{dem}}(\lambda)
    =
-   \log_{10} F_{\mathrm{GP,\,man}}(\lambda)
-   -
-   m_{\mathrm{old}}(\lambda),
+   \log_{10} F_{\mathrm{GP}}(\lambda) - C_{k-1}(\lambda)\,\mathbb{1}[\lambda\in D].
    $$
-   after interpolating the mask onto the extraction grid. This recovers a GP estimate of the spectrum **before** mangling.
-4. **Remangle.** Recompute a new mask $m_{\mathrm{new}}$ by comparing synthetic photometry of the demangled GP SED to `fitted_phot4mangling` (bundle-aware when enabled). Apply $m_{\mathrm{new}}$ to the **original prescaled** spectra (not to the GP extract):
+   Outside $D$ the GP never received $C_{k-1}$ (there were no data to apply it to), so removing it there would make the correction outside the data accumulate from iteration to iteration.
+4. **Correct to the photometry** as in step 5 (§7.2–7.3): every band whose validity window contains the epoch and that $F_{\mathrm{dem}}$ covers to $c_{\min}$, with $\sigma_{\Delta,i}$ including the GP error averaged over the band (the GP error is correlated across the band, so it is not reduced by summing pixels). The fitted mask is the new correction $C_k(\lambda)$, defined over the whole grid; a single band gives a constant.
+5. **Next input.** Each member spectrum's next GP input is its step-5 mangled spectrum plus $C_k$ at its GP-grid nodes:
    $$
-   \log_{10} F_{\mathrm{man}}^{(K+1)}
-   =
-   \log_{10} F_{\mathrm{pre}}
-   +
-   m_{\mathrm{new}}.
+   \log_{10} F_{\mathrm{man}}^{(k+1)} = \log_{10} F_{\mathrm{pre}} + m_5 + C_k ,
    $$
-5. **Closure.** For each band used at each epoch, form
+   with the uncertainty of $C_k$ added in quadrature. The total correction is always $m_5 + C_k$: the step-5 mask and one step-6 correction.
+6. **Closure.** For each band used at each epoch,
    $$
    \epsilon
    =
    \max_{b,\,\mathrm{epochs}}
    \left|
-   \frac{F_{\mathrm{syn}}\!\big(F_{\mathrm{pre}}\times 10^{m_{\mathrm{new}}}\big)
+   \frac{F_{\mathrm{syn}}\!\big(F_{\mathrm{pre}}\times 10^{m_5 + C_k}\big)
    -
    F^{\mathrm{GP}}_b}{F^{\mathrm{GP}}_b}
    \right|.
    $$
-   Stop if $\epsilon < \texttt{PHOT\_CONVERGENCE\_FRAC}$ (default $0.05$) or if $K+1$ reaches `ITER_GP_MANGLE_MAX_ITERS`.
+   Stop if $\epsilon < \texttt{PHOT\_CONVERGENCE\_FRAC}$ (default $0.05$) or at `ITER_GP_MANGLE_MAX_ITERS`.
+
+Inside $D$ the GP follows its inputs, $\log_{10}F_{\mathrm{GP}} \approx \log_{10}F_{\mathrm{pre}} + m_5 + C_{k-1}$, so step 4 gives in effect $C_k \approx C_{k-1} + (\text{photometry} - \text{GP})$: the correction changes only while the surface misses the photometry, and stops changing when it matches. Near-simultaneous spectra see nearly the same surface and photometry; where the GP averages them they receive nearly the same correction (their step-5 offsets remain as scatter about the surface), and where it bends toward each of them their corrections differ and pull each toward the photometry.
+
+**Legacy rule** (`ITER_REMANGLE_MODE = "legacy"`). Demangle the GP spectrum with each spectrum's total mask (held constant beyond its ends), remangle, and apply the new mask to the prescaled spectrum. For XSHOOTER groups this rule took every band constraint from one arm (the NIR file, by alphabetical order) and applied one shared mask, so each arm's own correction was replaced by another arm's edge value and the masks alternated between two states every iteration. It is kept only to reproduce earlier runs.
 
 ## 9.3 What is and is not remangled
 
@@ -509,7 +509,8 @@ Item & Default & Role \\
 \texttt{MANGLE\_MIN\_FILTER\_COVERAGE} & 0.99 & Step-5 bands must be this fully covered \\
 \texttt{ITER\_GP\_MANGLE\_MAX\_ITERS} & 20 & Outer-loop cap \\
 \texttt{PHOT\_CONVERGENCE\_FRAC} & 0.05 & Photometry closure tolerance \\
-\texttt{ITER\_MANGLE\_USE\_GP\_WAVELENGTH\_GRID} & True & Full-$\lambda$ remangle constraints \\
+\texttt{ITER\_REMANGLE\_MODE} & gp\_correction & Step-5 mangled + one GP-based correction \\
+\texttt{ITER\_MANGLE\_USE\_GP\_WAVELENGTH\_GRID} & True & Legacy remangle only \\
 \texttt{ITER\_GP\_WARM\_START} & True & Hyperparameter warm start \\
 \texttt{USE\_ITER\_GP\_MANGLE\_FINAL} & True & Notebooks 7.5 read iter final \\
 \texttt{ITER\_EXPORT\_DEREDDENED\_SED} & True & Write the dereddened final SED \\
