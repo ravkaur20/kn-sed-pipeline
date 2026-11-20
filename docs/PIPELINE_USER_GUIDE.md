@@ -516,7 +516,7 @@ python 4_Scale_spectra_KN.py --snname AT2017gfo --write-diagnostics
 
 ### 5.3 `5_Mangle_spectra_KN_log.py`
 
-**Science role.** At each spectroscopy epoch, compare synthetic photometry of the (prescaled) spectrum to the step-3 light-curve fit in every overlapping band. Fit a smooth mask $m(\lambda)$ in log flux so that after mangling, band fluxes match the light curve. Bundle-aware mode fits one shared mask per scale group using stitched synthetic photometry across arms.
+**Science role.** At each spectroscopy epoch, compare synthetic photometry of the (prescaled) spectrum to the step-3 light-curve fit in every band the spectrum covers (at least `MANGLE_MIN_FILTER_COVERAGE`, 99%, of the filter; see below). Fit a smooth mask $m(\lambda)$ in log flux so that after mangling, band fluxes match the light curve. Bundle-aware mode fits one shared mask per scale group using stitched synthetic photometry across arms.
 
 **Implementation.** [`helper_scripts/mangle_spectra_log.py`](../Codes/helper_scripts/mangle_spectra_log.py).
 
@@ -547,6 +547,17 @@ python 5_Mangle_spectra_KN_log.py --snname AT2017gfo --mangle-kernel-mode kernel
 ```
 
 **Synthetic photometry.** The band flux is $\bar F=\sum a_i F_i/\sum a_i$ with $a_i=T(\lambda_i)\lambda_i\Delta\lambda_i$, and its error is $\sqrt{\sum (a_i\sigma_i)^2}/\sum a_i$, which is correct for any pixel size. A filter whose band (weighted by $a_i$) is more than `MANGLE_MAX_CLIPPED_FRAC` (50%) clipped gives no constraint; otherwise its error is divided by the unclipped fraction.
+
+**Filter coverage.** A filter is used only if the spectrum covers at least `MANGLE_MIN_FILTER_COVERAGE` (0.99) of its photon weight $\int T\lambda\,d\lambda$. The synthetic flux above is averaged over the part of the filter the spectrum covers, but the light-curve flux it is compared with is the full-band average. On a sloped spectrum (a kilonova is steep) the two differ, so a filter the spectrum only partly covers gives a biased constraint: for AT2017gfo, partly covered filters scattered about twice as much as fully covered ones and pulled near-simultaneous spectra apart by up to 0.3 dex. Details:
+
+- Coverage runs from the spectrum's first to its last unclipped (weight 1) pixel. Interior clipped regions (telluric bands, which 0.2 bridges) count as covered; the clipped-fraction rule above still applies to them. Clipped blocks at either end do not count.
+- For an XSHOOTER group (bundle-aware mode), coverage is that of the arms together, so a filter that spans an arm boundary counts if the arms between them cover it; its synthetic flux is then taken on the stitched arms.
+- A spectrum left with a single usable filter gets a **constant** mask equal to that filter's offset (no wavelength dependence). With two or more the usual Matérn mask is fit. A spectrum with none is reported as `no_phot_constraints`.
+- The mangle report (`<SN>_mangle_report.json`) lists, per spectrum or group, `filter_coverage` for the filters used, and for single spectra `skipped_low_coverage` and `constant_mask`.
+- Set `MANGLE_MIN_FILTER_COVERAGE = 0` to use every overlapping filter (the behaviour before November 2026).
+- Step 6's re-mangle does not apply the rule: its spectra are GP extractions that span the whole SED grid.
+
+Fewer filters per spectrum (for AT2017gfo, e.g. 3 to 1 for LDSS3 57983.02788) usually means a flatter mask. A correction that changes slowly with wavelength across a whole night can then be missed by a spectrum that covers only part of it; compare the per-filter offsets in the report or the epoch plots.
 
 **Binning onto the GP grid.** After the mask is applied, each mangled spectrum is inverse-variance binned **in linear flux** onto the two-dimensional GP's log-wavelength grid (steps of `ITER_GP_GRID_DELTA` = 30 Å), excluding clipped pixels, and only then converted to log flux. Bins with S/N below `MANGLE_BIN_MIN_SNR` (3) are dropped. Taking the log of single noisy pixels would bias the flux and fail on negative pixels, and the exact GP cannot take every raw pixel (about 579,000 for AT2017gfo). All spectra are binned onto one grid built from all of them, and the files carry a `gp_grid_binned` header tag.
 
@@ -660,6 +671,7 @@ Edit [`Codes/pipeline_config.py`](../Codes/pipeline_config.py) or override via c
 | `MANGLE_BUNDLE_STITCH_SYNPHOT` | `True` | Integrate filters on stitched multi-arm spectra |
 | `MANGLE_RUN_BOTH_FOR_DIAG` | `False` | Turn on to compare per-arm versus bundle once |
 | `MANGLE_MAX_CLIPPED_FRAC` | `0.5` | Skip a filter whose band is more than this fraction clipped |
+| `MANGLE_MIN_FILTER_COVERAGE` | `0.99` | Step 5 uses a filter only if the spectrum (XSHOOTER: the arms together) covers this fraction of its photon weight; one usable filter gives a constant mask; `0` uses every overlapping filter; not applied in step 6 |
 | `MANGLE_BIN_MIN_SNR` | `3.0` | Drop GP-grid bins of a mangled spectrum below this S/N |
 
 ### 7.4 Iterative two-dimensional Gaussian Process (step 6)
@@ -779,7 +791,7 @@ Full constant list: see the source file and its grouped sections.
 | Step 0 exits with "Refusing to overwrite" (status 2) | The output file already exists | Rename/back up the old file (e.g. `AT2017gfo_old.dat`) and re-run, or pass `--overwrite` |
 | Step 0 `--from-json` drops many rows with "no filter curve" | No `Inputs/Filters/GeneralFilters/<Instrument>_<Filter>.dat` or `<Telescope>_<Filter>.dat` | Add the filter curve (named to match), or fix the spelling in the JSON; see `Outputs/<SN>/<SN>_step0_json_rows.csv` |
 | Synthetic mags of the final SED are systematically brighter or fainter than the catalog `Mag` (by a band-dependent amount) | Pipeline was run on fluxes not produced by step 0, or `SYNTH_METHOD` is not `true_ab` | Run step 0 `--check`; regenerate downstream products; use `true_ab` in notebook 7.6 |
-| `no_phot_constraints` in step 5 | No light-curve-fit bands overlap the spectrum epoch within band Modified Julian Date windows | Check `*_band_mjd_ranges.json`, band names, and whether step 3 wrote finite fits for those bands |
+| `no_phot_constraints` in step 5 | No light-curve-fit bands overlap the spectrum epoch within band Modified Julian Date windows, or the spectrum covers no filter to `MANGLE_MIN_FILTER_COVERAGE` | Check `*_band_mjd_ranges.json`, band names, and whether step 3 wrote finite fits for those bands; for a short spectrum, check which filters it covers fully (only lower the coverage threshold knowingly) |
 | Missing `*_band_mjd_ranges.json` | Outputs were cleared and step 5 has not run yet | Re-run step 5; it regenerates the JSON from `1_LCs_flux_raw` |
 | Empty or short prescaled list | Step 4 not run, or the 0.3 list (`1.6_spec_lists_errors`) is empty | Re-run notebooks 0.2 and 0.3 (save cells) and step 4; verify list paths resolve under `COCO_PATH` |
 | Step 3 or 5 is missing fitted photometry for a new spectrum epoch | Step 3 ran before step 4 wrote the new prescaled list | Run step 4, then step 3, then steps 5 and 6 |

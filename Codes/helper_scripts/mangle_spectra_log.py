@@ -254,6 +254,72 @@ def spec_weights_or_none(spec: np.ndarray) -> Optional[np.ndarray]:
     return None
 
 
+def _resolve_min_filter_coverage(value: Optional[float]) -> float:
+    """``value``, or ``MANGLE_MIN_FILTER_COVERAGE`` from the config when None."""
+    if value is not None:
+        return float(value)
+    try:
+        import pipeline_config as _pc
+
+        return float(getattr(_pc, "MANGLE_MIN_FILTER_COVERAGE", 0.0))
+    except ImportError:
+        return 0.0
+
+
+def spectrum_data_interval(
+    wls: np.ndarray, weight: Optional[np.ndarray] = None
+) -> Optional[tuple[float, float]]:
+    """``(lo, hi)`` from the first to the last weight-1 pixel (all pixels without
+    weights). Interior clipped pixels count as covered, since 0.2 bridges them;
+    clipped blocks at either end do not."""
+    w = np.asarray(wls, dtype=float)
+    if weight is not None:
+        w = w[np.asarray(weight, dtype=float) > 0]
+    w = w[np.isfinite(w)]
+    if w.size < 1:
+        return None
+    return float(np.min(w)), float(np.max(w))
+
+
+def filter_coverage_fraction(
+    filter_name: str,
+    intervals: Sequence[tuple[float, float]],
+    *,
+    filter_path: str,
+    snname: str = "",
+    csp_sne: Sequence[str] = (),
+) -> float:
+    """Fraction of the filter's photon weight, the integral of T * lambda, that
+    lies inside the union of ``intervals`` (linear Angstrom)."""
+    filt_path = _resolve_filter_path(filter_path, filter_name, snname, csp_sne)
+    filt = np.genfromtxt(filt_path, dtype=None, encoding="utf-8", names=["wls", "flux"])
+    fw = np.asarray(filt["wls"], dtype=float)
+    order = np.argsort(fw)
+    fw = fw[order]
+    ft = np.clip(np.asarray(filt["flux"], dtype=float)[order], 0.0, None)
+    ivs = [(float(lo), float(hi)) for lo, hi in intervals if hi > lo]
+    # interval edges become nodes, so the covered integral is exact for a
+    # piecewise-linear T * lambda
+    edges = [x for iv in ivs for x in iv if fw[0] < x < fw[-1]]
+    x = np.unique(np.concatenate([fw, np.asarray(edges, dtype=float)]))
+    a = np.interp(x, fw, ft) * x
+    seg = 0.5 * (a[1:] + a[:-1]) * np.diff(x)
+    total = float(np.sum(seg))
+    if total <= 0.0:
+        return 0.0
+    mid = 0.5 * (x[1:] + x[:-1])
+    inside = np.zeros(mid.size, dtype=bool)
+    for lo, hi in ivs:
+        inside |= (mid >= lo) & (mid <= hi)
+    return float(np.sum(seg[inside])) / total
+
+
+def _constant_mask(value: float, err: float, n: int) -> tuple[np.ndarray, np.ndarray]:
+    """Mask and its std for a spectrum with a single usable filter: that
+    filter's offset at every wavelength (no wavelength dependence)."""
+    return np.full(n, float(value)), np.full(n, float(err))
+
+
 def gp_grid_for_spectra(specs: Sequence[np.ndarray], delta_a: Optional[float] = None) -> np.ndarray:
     """The GP log10 wavelength grid spanning all weight-1 pixels of ``specs``.
 
@@ -340,6 +406,7 @@ def compute_mangling_mask(
     kernel_divide: int = 800,
     min_gp_metric: float = 0.09,
     gp_grid_log10: Optional[np.ndarray] = None,
+    min_filter_coverage: Optional[float] = None,
 ) -> Optional[tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, Any]]]:
     """Fit wavelength-dependent log-space mangling mask (NB5 logic).
 
@@ -350,6 +417,11 @@ def compute_mangling_mask(
     log (see ``bin_mangled_to_gp_grid``): the returned arrays are per node and
     ``meta["out_wls"]`` holds the node wavelengths. Otherwise they are per
     pixel, as before.
+
+    A filter is used only if the spectrum covers at least
+    ``min_filter_coverage`` (default ``MANGLE_MIN_FILTER_COVERAGE``) of its
+    photon weight (see ``filter_coverage_fraction``). With a single usable
+    filter the mask is that filter's constant offset.
     """
     from scipy import optimize
 
@@ -372,6 +444,10 @@ def compute_mangling_mask(
     flux = np.asarray(raw_spec["flux"], dtype=float)
     fluxerr = np.asarray(raw_spec["fluxerr"], dtype=float)
     weight = spec_weights_or_none(raw_spec)
+    min_cov = _resolve_min_filter_coverage(min_filter_coverage)
+    data_iv = spectrum_data_interval(wls, weight)
+    coverage: dict[str, float] = {}
+    skipped_low_coverage: dict[str, float] = {}
 
     for filt in avail_filters:
         if filt not in filter_mjd_dict:
@@ -390,6 +466,20 @@ def compute_mangling_mask(
             raise NotImplementedError(
                 "photometry_target=%r not implemented in Phase 1" % photometry_target
             )
+
+        if min_cov > 0.0:
+            cov = (
+                filter_coverage_fraction(
+                    filt, [data_iv], filter_path=filter_path, snname=snname, csp_sne=csp_sne
+                )
+                if data_iv is not None
+                else 0.0
+            )
+            if cov < min_cov:
+                if cov > 0.0:
+                    skipped_low_coverage[filt] = round(cov, 4)
+                continue
+            coverage[filt] = round(cov, 4)
 
         lam_avg, lam_eff, raw_phot, raw_phot_err, min_wls, max_wls = band_flux_trapz(
             wls, flux, fluxerr, filt, filter_path=filter_path, snname=snname, csp_sne=csp_sne,
@@ -415,52 +505,60 @@ def compute_mangling_mask(
     log_wls_eff_a = np.asarray(log_wls_eff, dtype=float)
     log_diffs_err_a = np.asarray(log_diffs_err, dtype=float)
 
-    if len(wls) > 10 ** 4:
-        full_wls = wls[:: max(1, int(len(wls) / 5000.0))]
-    else:
-        full_wls = wls
-    full_log_wls = np.log10(full_wls)
-
-    norm_wls = float(np.median(full_log_wls))
-    full_log_wls_normed = full_log_wls - norm_wls
-    log_wls_eff_normed = log_wls_eff_a - norm_wls
     norm_diff = float(np.median(log_diffs_a))
-    log_diffs_normed = log_diffs_a - norm_diff
-
-    kernel_len = _mangle_gp_kernel_length(norm_wls, kernel_divide)
-    k = np.var(log_diffs_normed) * Matern32Kernel(kernel_len)
-    gp = george.GP(k)
-    gp.compute(np.atleast_2d(log_wls_eff_normed).T, log_diffs_err_a)
-    p0 = gp.get_parameter_vector()
-
-    def ll(p: np.ndarray) -> float:
-        gp.set_parameter_vector(p)
-        scale = float(np.exp(gp.get_parameter_dict()["kernel:k2:metric:log_M_0_0"]))
-        if scale < min_gp_metric:
-            return np.inf
-        return -gp.lnlikelihood(log_diffs_normed, quiet=True)
-
-    def grad_ll(p: np.ndarray) -> np.ndarray:
-        gp.set_parameter_vector(p)
-        return -gp.grad_lnlikelihood(log_diffs_normed, quiet=True)
-
-    results = optimize.minimize(ll, p0, jac=grad_ll)
-    gp.set_parameter_vector(results.x)
-    mu_log, cov = gp.predict(log_diffs_normed, full_log_wls - norm_wls)
-    std_log = np.sqrt(np.diag(cov))
-
-    if len(wls) > 10 ** 4:
-        mu_full_log = np.interp(np.log10(wls), full_log_wls, mu_log)
-        std_full_log = np.interp(np.log10(wls), full_log_wls, std_log)
+    if log_diffs_a.size == 1:
+        mangling_mask, std_full_log = _constant_mask(
+            log_diffs_a[0], log_diffs_err_a[0], len(wls)
+        )
     else:
-        mu_full_log = mu_log
-        std_full_log = std_log
+        if len(wls) > 10 ** 4:
+            full_wls = wls[:: max(1, int(len(wls) / 5000.0))]
+        else:
+            full_wls = wls
+        full_log_wls = np.log10(full_wls)
 
-    mangling_mask = mu_full_log + norm_diff
+        norm_wls = float(np.median(full_log_wls))
+        log_wls_eff_normed = log_wls_eff_a - norm_wls
+        log_diffs_normed = log_diffs_a - norm_diff
+
+        kernel_len = _mangle_gp_kernel_length(norm_wls, kernel_divide)
+        k = np.var(log_diffs_normed) * Matern32Kernel(kernel_len)
+        gp = george.GP(k)
+        gp.compute(np.atleast_2d(log_wls_eff_normed).T, log_diffs_err_a)
+        p0 = gp.get_parameter_vector()
+
+        def ll(p: np.ndarray) -> float:
+            gp.set_parameter_vector(p)
+            scale = float(np.exp(gp.get_parameter_dict()["kernel:k2:metric:log_M_0_0"]))
+            if scale < min_gp_metric:
+                return np.inf
+            return -gp.lnlikelihood(log_diffs_normed, quiet=True)
+
+        def grad_ll(p: np.ndarray) -> np.ndarray:
+            gp.set_parameter_vector(p)
+            return -gp.grad_lnlikelihood(log_diffs_normed, quiet=True)
+
+        results = optimize.minimize(ll, p0, jac=grad_ll)
+        gp.set_parameter_vector(results.x)
+        mu_log, cov = gp.predict(log_diffs_normed, full_log_wls - norm_wls)
+        std_log = np.sqrt(np.diag(cov))
+
+        if len(wls) > 10 ** 4:
+            mu_full_log = np.interp(np.log10(wls), full_log_wls, mu_log)
+            std_full_log = np.interp(np.log10(wls), full_log_wls, std_log)
+        else:
+            mu_full_log = mu_log
+            std_full_log = std_log
+
+        mangling_mask = mu_full_log + norm_diff
     meta = {
         "used_filters": used_filters,
         "norm_diff": norm_diff,
         "n_filters": len(used_filters),
+        "constant_mask": bool(log_diffs_a.size == 1),
+        "min_filter_coverage": min_cov,
+        "filter_coverage": coverage,
+        "skipped_low_coverage": skipped_low_coverage,
     }
     if gp_grid_log10 is not None and weight is not None:
         node_wls, log_f, log_e, m_node = bin_mangled_to_gp_grid(
@@ -490,8 +588,13 @@ def _collect_mangle_constraints(
     csp_sne: Sequence[str] = (),
     photometry_target: str = "gp_fit",
     weight: Optional[np.ndarray] = None,
+    min_filter_coverage: Optional[float] = None,
 ) -> Optional[tuple[np.ndarray, np.ndarray, np.ndarray, list[str]]]:
-    """Return ``(log_diffs, log_diffs_err, log_wls_eff, used_filters)`` or ``None``."""
+    """Return ``(log_diffs, log_diffs_err, log_wls_eff, used_filters)`` or ``None``.
+
+    Filters the spectrum covers less than ``min_filter_coverage`` of (default
+    ``MANGLE_MIN_FILTER_COVERAGE``) are skipped.
+    """
     spec_mjd = float(phot4mangling_row["spec_mjd"])
     log_diffs: list[float] = []
     log_diffs_err: list[float] = []
@@ -501,6 +604,8 @@ def _collect_mangle_constraints(
     wls = np.asarray(wls, dtype=float)
     flux = np.asarray(flux, dtype=float)
     fluxerr = np.asarray(fluxerr, dtype=float)
+    min_cov = _resolve_min_filter_coverage(min_filter_coverage)
+    data_iv = spectrum_data_interval(wls, weight)
 
     for filt in avail_filters:
         if filt not in filter_mjd_dict:
@@ -519,6 +624,12 @@ def _collect_mangle_constraints(
             raise NotImplementedError(
                 "photometry_target=%r not implemented" % photometry_target
             )
+
+        if min_cov > 0.0:
+            if data_iv is None or filter_coverage_fraction(
+                filt, [data_iv], filter_path=filter_path, snname=snname, csp_sne=csp_sne
+            ) < min_cov:
+                continue
 
         _la, lam_eff, raw_phot, raw_phot_err, min_wls, max_wls = band_flux_trapz(
             wls, flux, fluxerr, filt, filter_path=filter_path, snname=snname, csp_sne=csp_sne,
@@ -556,13 +667,19 @@ def _fit_mangling_mask_on_grid(
     kernel_divide: int = 800,
     min_gp_metric: float = 0.09,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, Any]]:
-    """Fit Matern32 GP mangling mask; evaluate on ``target_wls_linear`` (linear Å)."""
+    """Fit Matern32 GP mangling mask; evaluate on ``target_wls_linear`` (linear Å).
+
+    A single constraint gives a constant mask (that filter's offset)."""
     from scipy import optimize
 
     import george
     from george.kernels import Matern32Kernel
 
     wls = np.asarray(target_wls_linear, dtype=float)
+    log_diffs = np.asarray(log_diffs, dtype=float)
+    if log_diffs.size == 1:
+        m, s = _constant_mask(log_diffs[0], np.asarray(log_diffs_err, dtype=float)[0], len(wls))
+        return m, s, {"norm_diff": float(log_diffs[0]), "n_constraints": 1, "constant_mask": True}
     if len(wls) > 10 ** 4:
         full_wls = wls[:: max(1, int(len(wls) / 5000.0))]
     else:
@@ -718,6 +835,7 @@ def _single_filter_constraint(
     csp_sne: Sequence[str] = (),
     photometry_target: str = "gp_fit",
     weight: Optional[np.ndarray] = None,
+    min_filter_coverage: Optional[float] = None,
 ) -> Optional[tuple[float, float, float]]:
     c = _collect_mangle_constraints(
         wls,
@@ -731,6 +849,7 @@ def _single_filter_constraint(
         csp_sne=csp_sne,
         photometry_target=photometry_target,
         weight=weight,
+        min_filter_coverage=min_filter_coverage,
     )
     if c is None:
         return None
@@ -755,14 +874,23 @@ def _bundle_constraint_for_filter(
     merge_order: Optional[Sequence[str]] = None,
     use_gp_wavelength_grid: bool = False,
     stitch_synphot: bool = True,
+    min_filter_coverage: Optional[float] = None,
+    info: Optional[dict[str, Any]] = None,
 ) -> Optional[tuple[float, float, float, str]]:
-    """Return ``(log_diff, log_diff_err, log_wls_eff, mode_tag)`` for one filter."""
+    """Return ``(log_diff, log_diff_err, log_wls_eff, mode_tag)`` for one filter.
+
+    Outside GP-grid mode the filter must be covered to ``min_filter_coverage``
+    (default ``MANGLE_MIN_FILTER_COVERAGE``) by the union of the arms' data
+    ranges; a constraint from one arm alone (no stitching) needs that arm to
+    reach it. ``info``, if given, receives the ``coverage``.
+    """
     if filt not in filter_mjd_dict:
         return None
     fmin, fmax = _filter_linear_wavelength_range(
         filt, filter_path=filter_path, snname=snname, csp_sne=csp_sne
     )
     names_ordered = _ordered_member_names(names, merge_order)
+    min_cov = _resolve_min_filter_coverage(min_filter_coverage)
 
     if use_gp_wavelength_grid:
         ref_name = max(names, key=lambda n: len(member_specs[n]["wls"]))
@@ -780,11 +908,27 @@ def _bundle_constraint_for_filter(
             snname=snname,
             csp_sne=csp_sne,
             photometry_target=photometry_target,
+            min_filter_coverage=min_cov,
         )
         if out is None:
             return None
         d, e, wl = out
         return d, e, wl, "gp_grid"
+
+    if min_cov > 0.0:
+        arm_ivs = [
+            iv for iv in (
+                spectrum_data_interval(member_specs[n]["wls"], spec_weights_or_none(member_specs[n]))
+                for n in names
+            ) if iv is not None
+        ]
+        cov = filter_coverage_fraction(
+            filt, arm_ivs, filter_path=filter_path, snname=snname, csp_sne=csp_sne
+        ) if arm_ivs else 0.0
+        if info is not None:
+            info["coverage"] = round(cov, 4)
+        if cov < min_cov:
+            return None
 
     overlapping: list[tuple[str, float]] = []
     arm_wls_list: list[np.ndarray] = []
@@ -807,6 +951,7 @@ def _bundle_constraint_for_filter(
             wls, flux, fluxerr, row, filt, filter_mjd_dict,
             filter_path=filter_path, snname=snname, csp_sne=csp_sne,
             photometry_target=photometry_target, weight=spec_weights_or_none(spec),
+            min_filter_coverage=0.0,  # coverage is checked on the union above / best arm below
         )
         if out is None:
             continue
@@ -837,11 +982,19 @@ def _bundle_constraint_for_filter(
                 sw, sf, se, row, filt, filter_mjd_dict,
                 filter_path=filter_path, snname=snname, csp_sne=csp_sne,
                 photometry_target=photometry_target, weight=sweight,
+                min_filter_coverage=0.0,  # the union of the arms was checked above
             )
             if out is not None:
                 d, e, wl = out
                 return d, e, wl, "stitched"
 
+    if min_cov > 0.0:
+        best = member_specs[best_name]
+        best_iv = spectrum_data_interval(best["wls"], spec_weights_or_none(best))
+        if best_iv is None or filter_coverage_fraction(
+            filt, [best_iv], filter_path=filter_path, snname=snname, csp_sne=csp_sne
+        ) < min_cov:
+            return None
     d, e, wl = best_constraint
     return d, e, wl, "best_arm:%s" % best_name
 
@@ -886,6 +1039,7 @@ def compute_mangling_mask_bundle(
     kernel_divide: int = 800,
     min_gp_metric: float = 0.09,
     gp_grid_log10: Optional[np.ndarray] = None,
+    min_filter_coverage: Optional[float] = None,
 ) -> Optional[tuple[dict[str, np.ndarray], dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]], dict[str, Any]]]:
     """One shared mangling mask per exposure group; applied per arm.
 
@@ -893,6 +1047,10 @@ def compute_mangling_mask_bundle(
     ``(log_mangled_flux, log_mangled_err, linear_wls)``. Reduced arms (with a
     ``weight`` column) are binned onto ``gp_grid_log10`` when it is given, so
     their arrays (and mask) are per GP node.
+
+    Filters covered less than ``min_filter_coverage`` (default
+    ``MANGLE_MIN_FILTER_COVERAGE``) by the arms together are skipped (see
+    ``_bundle_constraint_for_filter``).
     """
     if len(member_specs) < 1:
         return None
@@ -912,8 +1070,11 @@ def compute_mangling_mask_bundle(
     pooled_wls: list[float] = []
     used_filters: list[str] = []
     mode_for_filter: dict[str, str] = {}
+    min_cov = _resolve_min_filter_coverage(min_filter_coverage)
+    coverage: dict[str, float] = {}
 
     for filt in avail_filters:
+        cinfo: dict[str, Any] = {}
         c = _bundle_constraint_for_filter(
             filt,
             member_specs,
@@ -928,6 +1089,8 @@ def compute_mangling_mask_bundle(
             merge_order=merge_order,
             use_gp_wavelength_grid=use_gp_wavelength_grid,
             stitch_synphot=bool(stitch_synphot),
+            min_filter_coverage=min_cov,
+            info=cinfo,
         )
         if c is None:
             continue
@@ -937,6 +1100,8 @@ def compute_mangling_mask_bundle(
         pooled_wls.append(wl)
         used_filters.append(filt)
         mode_for_filter[filt] = mode_tag
+        if "coverage" in cinfo:
+            coverage[filt] = cinfo["coverage"]
 
     if len(pooled_diffs) < 1:
         return None
@@ -995,6 +1160,8 @@ def compute_mangling_mask_bundle(
         "use_gp_wavelength_grid": bool(use_gp_wavelength_grid),
         "stitch_synphot": bool(stitch_synphot),
         "gp_grid_binned": bool(gp_grid_log10 is not None),
+        "min_filter_coverage": min_cov,
+        "filter_coverage": coverage,
         **fit_meta,
     }
     return masks, mangled, meta

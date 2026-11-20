@@ -280,7 +280,13 @@ $$
 
 with uncertainty propagated from $F_\lambda$ errors through the same quadrature. This is the photon-weighted band mean $\langle f_\lambda\rangle$ of §1.4, so it is directly comparable to the step-0 photometric fluxes. Effective wavelength $\lambda_{\mathrm{eff}}$ is used only to place the constraint on the log-wavelength axis, not to convert between magnitudes and fluxes.
 
-Only bands whose validity window (from `<SN>_band_mjd_ranges.json`) contains the spectrum MJD, and whose throughput overlaps the spectrum, contribute constraints.
+Only bands whose validity window (from `<SN>_band_mjd_ranges.json`) contains the spectrum MJD, and which the spectrum covers, contribute constraints. A band is covered if the spectrum spans at least a fraction $c_{\min}$ = `MANGLE_MIN_FILTER_COVERAGE` (0.99) of its photon weight,
+
+$$
+\frac{\int_{\lambda_{\rm lo}}^{\lambda_{\rm hi}} T(\lambda)\,\lambda\,d\lambda}{\int T(\lambda)\,\lambda\,d\lambda} \ge c_{\min},
+$$
+
+where $[\lambda_{\rm lo},\lambda_{\rm hi}]$ runs from the first to the last unclipped pixel (interior clipped regions, bridged in notebook 0.2, count as covered). The reason is that the sums above run only over the spectrum's pixels, so for a partly covered band $F_{\mathrm{band}}$ is the mean over the covered part, while the photometry it is compared with (§7.3) is the mean over the whole band. The two agree only for a flat spectrum: for $F_\lambda\propto\lambda^{-3}$ and a box filter covered over its blue half, the offset is about 0.08 dex. Before this rule (any overlapping band used), about a third of AT2017gfo's constraints covered less than 90% of their band, and spectra taken within an hour of each other received masks up to 0.3 dex apart. Setting $c_{\min}=0$ restores that behaviour. The rule applies to step 5 only; step 6's remangle (§9) works on GP extractions that span the whole SED grid.
 
 ## 7.3 Log offsets and the mangling GP
 
@@ -304,7 +310,7 @@ $$
 \sigma_{\log F^{\mathrm{syn}},i}^2.
 $$
 
-A one-dimensional GP with a Matérn $3/2$ kernel is then fit to $\Delta_i$ versus $\log_{10}\lambda_{\mathrm{eff}}$ (after centering). The posterior mean $m(\lambda)$ evaluated on the spectrum’s wavelength grid is the **mangling mask**. The mangled spectrum is
+A one-dimensional GP with a Matérn $3/2$ kernel is then fit to $\Delta_i$ versus $\log_{10}\lambda_{\mathrm{eff}}$ (after centering). The posterior mean $m(\lambda)$ evaluated on the spectrum’s wavelength grid is the **mangling mask**. With a single usable band the mask is the constant $m(\lambda)=\Delta_1$ (error $\sigma_{\Delta,1}$), since one point cannot constrain a shape. The mangled spectrum is
 
 $$
 \log_{10} F_{\mathrm{man}}(\lambda)
@@ -331,7 +337,7 @@ Mode & Lengthscale & Notes \\
 
 ## 7.5 Bundle-aware mangling
 
-When `MANGLE_BUNDLE_AWARE=True`, all arms in a scale group share one mask. Synthetic photometry for a filter may be computed on a **stitched** multi-arm spectrum (`MANGLE_BUNDLE_STITCH_SYNPHOT`) so that filters spanning arm boundaries are integrated consistently. The shared mask is then applied to each member’s native wavelength grid.
+When `MANGLE_BUNDLE_AWARE=True`, all arms in a scale group share one mask. Synthetic photometry for a filter may be computed on a **stitched** multi-arm spectrum (`MANGLE_BUNDLE_STITCH_SYNPHOT`) so that filters spanning arm boundaries are integrated consistently. The coverage rule of §7.2 uses the union of the arms' data ranges, so such a filter counts as covered when the arms together cover it. The shared mask is then applied to each member’s native wavelength grid.
 
 Driver: `5_Mangle_spectra_KN_log.py`. Library: `helper_scripts/mangle_spectra_log.py`.
 
@@ -500,6 +506,7 @@ Item & Default & Role \\
 \texttt{USE\_PRESCALED\_SPECTRA} & True & Steps 5--6 read prescaled lists \\
 \texttt{MANGLE\_BUNDLE\_AWARE} & True & Shared mangling mask per group \\
 \texttt{MANGLE\_GP\_KERNEL\_MODE} & fixed\_5 & PyCoCo-parity mangling lengthscale \\
+\texttt{MANGLE\_MIN\_FILTER\_COVERAGE} & 0.99 & Step-5 bands must be this fully covered \\
 \texttt{ITER\_GP\_MANGLE\_MAX\_ITERS} & 20 & Outer-loop cap \\
 \texttt{PHOT\_CONVERGENCE\_FRAC} & 0.05 & Photometry closure tolerance \\
 \texttt{ITER\_MANGLE\_USE\_GP\_WAVELENGTH\_GRID} & True & Full-$\lambda$ remangle constraints \\

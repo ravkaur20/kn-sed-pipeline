@@ -361,6 +361,9 @@ def remangle_spectra(
                 member_mjd=mjds,
                 merge_order=group_merge_order.get(gid),
                 use_gp_wavelength_grid=use_gp_wl,
+                # step 5's filter-coverage rule is not applied here (GP spectra
+                # span the whole SED grid); see MANGLE_MIN_FILTER_COVERAGE
+                min_filter_coverage=0.0,
             )
             if out is None:
                 continue
@@ -415,6 +418,7 @@ def remangle_spectra(
             snname=snname,
             csp_sne=csp_sne,
             photometry_target=pt,
+            min_filter_coverage=0.0,  # step 5's coverage rule is not applied in step 6
         )
         if out is None:
             continue

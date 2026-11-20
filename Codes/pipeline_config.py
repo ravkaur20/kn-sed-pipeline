@@ -551,6 +551,14 @@ MANGLE_GP_KERNEL_FIXED: float = 5.0  # PyCoCo parity; used when mode == "fixed_5
 MANGLE_SEAM_REGRESSION_FACTOR: float = 1.5
 # Reduced (unsmoothed) spectra only:
 MANGLE_MAX_CLIPPED_FRAC: float = 0.5  # skip a filter if more of its band than this is clipped (weight 0)
+# Step 5 uses a filter only if the spectrum covers at least this fraction of the filter's
+# photon weight (integral of T * lambda). The synthetic flux is computed from the covered
+# part only but compared with full-band photometry, so a partly covered filter biases the
+# mask on a sloped spectrum. Coverage runs from the first to the last weight-1 pixel
+# (interior clipped regions count as covered); for an X-shooter group it is the union of
+# the arms. A spectrum left with one filter gets a constant offset. 0 turns the rule off.
+# Step 6's re-mangle does not apply it (its GP spectra span the whole SED grid).
+MANGLE_MIN_FILTER_COVERAGE: float = 0.99
 MANGLE_BIN_MIN_SNR: float = 3.0  # drop GP-grid bins below this S/N (bins use ITER_GP_GRID_DELTA)
 MANGLE_BUNDLE_STITCH_SYNPHOT: bool = True
 MANGLE_RUN_BOTH_FOR_DIAG: bool = False  # run per-arm + bundle once; diagnostics-only compare
