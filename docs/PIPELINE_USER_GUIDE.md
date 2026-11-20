@@ -607,7 +607,7 @@ python 6_Iterative_GP_mangle_KN.py --snname AT2017gfo --max-iters 2 --verbose
 python 6_Iterative_GP_mangle_KN.py --snname AT2017gfo --max-iters 20 --verbose
 ```
 
-Each re-mangle bins onto the same grid as step 5, and the grid preparation copies binned values onto the grid nodes without interpolating, so a clipped gap stays empty instead of being filled. The photometry-closure check compares only bands observed around each epoch (inside that band's MJD range).
+Each re-mangle bins onto the same grid as step 5, and the grid preparation copies binned values onto the grid nodes without interpolating, so a clipped gap stays empty instead of being filled. The photometry-closure check (the stopping test) uses the same bands as mangling: observed around each epoch (inside that band's MJD range) and covered to `MANGLE_MIN_FILTER_COVERAGE` by the spectrum's data. An XSHOOTER night is checked as one unit on its stitched arms, so each band counts once per night. (Before, bands the spectrum only partly covered were included, which kept the largest error far above `PHOT_CONVERGENCE_FRAC` and the loop always ran to the cap.)
 
 In `legacy` mode, `ITER_MANGLE_USE_GP_WAVELENGTH_GRID=True` means remangle constraints are built from a demangled Gaussian Process SED sampled across the **full training wavelength range**, not only each arm’s native span; the new mask is applied to the original prescaled wavelength grids. `gp_correction` mode always works on the full grid.
 

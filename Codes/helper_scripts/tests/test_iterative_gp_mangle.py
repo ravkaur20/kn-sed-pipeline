@@ -254,6 +254,7 @@ class TestPhotometryClosureBandSelection(unittest.TestCase):
                 out = igm.compute_photometry_closure(
                     {"s.dat": path}, {"s.dat": np.zeros(n_pix)}, p4m, ["A", "B", "C", "D"],
                     ranges, filter_path=td, snname="TESTSN",
+                    min_filter_coverage=0.0,  # no filter files here; coverage is tested elsewhere
                 )
             self.assertEqual(bft.call_count, 1)
             self.assertEqual(bft.call_args[0][3], "A")

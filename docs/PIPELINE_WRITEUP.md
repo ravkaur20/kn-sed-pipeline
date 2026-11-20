@@ -445,7 +445,7 @@ Corrections are made per **unit**: a single spectrum, or the arms of an XSHOOTER
    \log_{10} F_{\mathrm{man}}^{(k+1)} = \log_{10} F_{\mathrm{pre}} + m_5 + C_k ,
    $$
    with the uncertainty of $C_k$ added in quadrature. The total correction is always $m_5 + C_k$: the step-5 mask and one step-6 correction.
-6. **Closure.** For each band used at each epoch,
+6. **Closure.** For each band observed at each epoch and covered to $c_{\min}$ by the spectrum's data (an XSHOOTER night counts once, on its stitched arms),
    $$
    \epsilon
    =

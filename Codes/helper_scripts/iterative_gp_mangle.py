@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+from types import SimpleNamespace
 from typing import Any, Mapping, Optional, Sequence
 
 import numpy as np
@@ -40,6 +41,10 @@ from mangle_spectra_log import (
     _mangled_output_basename,
     _phot_row_for_mjd,
     _resolve_filter_path,
+    _resolve_min_filter_coverage,
+    _filter_linear_wavelength_range,
+    filter_coverage_fraction,
+    stitch_arm_spectrum_for_filter,
 )
 from photometry_filter_utils import load_band_mjd_ranges_json
 from spectra_pre_scale import load_scale_groups_json, load_spec_list
@@ -151,23 +156,56 @@ def compute_photometry_closure(
     snname: str,
     csp_sne: Sequence[str] = (),
     photometry_target: str = "gp_fit",
+    units: Optional[Sequence[tuple[str, Sequence[Any]]]] = None,
+    spec_mjds: Optional[Mapping[str, float]] = None,
+    min_filter_coverage: Optional[float] = None,
+    return_points: bool = False,
 ) -> dict[str, Any]:
-    """Max/median relative synphot error after applying masks to prescaled spectra."""
-    rel_errors = []
-    for bn, mask in masks_by_basename.items():
-        if bn not in prescaled_paths:
-            continue
-        pre = load_linear_spectrum(prescaled_paths[bn])
-        mask_a = np.asarray(mask, dtype=float)
-        if mask_a.size != len(pre):
-            continue
-        # apply the mask in linear flux (keeps noisy pixels with flux <= 0)
-        flux_lin = np.asarray(pre["flux"], dtype=float) * np.power(10.0, mask_a)
+    """Max/median relative synphot error after applying masks to prescaled spectra.
+
+    Uses the same bands as mangling: inside the band's MJD range, and covered
+    to ``min_filter_coverage`` (default ``MANGLE_MIN_FILTER_COVERAGE``) by the
+    spectrum's data (first to last weight-1 pixel). With ``units`` (see
+    ``mangle_units``) the arms of an XSHOOTER night are checked together: the
+    coverage is that of the arms' union and the synthetic flux is taken on the
+    stitched arms, so each band is counted once per night. ``return_points``
+    adds a ``points`` list (unit, band, mjd, relative error).
+    """
+    min_cov = _resolve_min_filter_coverage(min_filter_coverage)
+    if spec_mjds is None:
         list_path = pconf.spec_list_path_for_mangling(None, snname)
-        entries = {e.basename: e for e in load_spec_list(list_path)}
-        if bn not in entries:
+        spec_mjds = {e.basename: float(e.mjd) for e in load_spec_list(list_path)}
+    if units is None:
+        units = [(bn, [SimpleNamespace(basename=bn)]) for bn in masks_by_basename]
+    rel_errors = []
+    points: list[dict[str, Any]] = []
+    for unit_id, unit_entries in units:
+        member_specs: dict[str, np.ndarray] = {}
+        for e in unit_entries:
+            bn = e.basename
+            if bn not in masks_by_basename or bn not in prescaled_paths or bn not in spec_mjds:
+                continue
+            pre = load_linear_spectrum(prescaled_paths[bn])
+            mask_a = np.asarray(masks_by_basename[bn], dtype=float)
+            if mask_a.size != len(pre):
+                continue
+            # apply the mask in linear flux (keeps noisy pixels with flux <= 0)
+            scale = np.power(10.0, mask_a)
+            weight = spec_weights_or_none(pre)
+            sp = np.zeros(len(pre), dtype=[("wls", float), ("flux", float), ("fluxerr", float), ("weight", float)])
+            sp["wls"] = pre["wls"]
+            sp["flux"] = np.asarray(pre["flux"], dtype=float) * scale
+            sp["fluxerr"] = np.asarray(pre["fluxerr"], dtype=float) * scale
+            sp["weight"] = 1.0 if weight is None else weight
+            member_specs[bn] = sp
+        if not member_specs:
             continue
-        mjd = float(entries[bn].mjd)
+        names = sorted(member_specs, key=lambda n: spec_mjds[n])
+        mjd = float(spec_mjds[names[0]])
+        intervals = [
+            iv for iv in (spectrum_data_interval(s["wls"], s["weight"]) for s in member_specs.values())
+            if iv is not None
+        ]
         row = _phot_row_for_mjd(phot4mangling, mjd)
         for filt in avail_filters:
             mjd_key = str(filt)
@@ -194,32 +232,57 @@ def compute_photometry_closure(
             else:
                 continue
             try:
+                if min_cov > 0.0 and filter_coverage_fraction(
+                    filt, intervals, filter_path=filter_path, snname=snname, csp_sne=csp_sne
+                ) < min_cov:
+                    continue
+                if len(names) == 1:
+                    s = member_specs[names[0]]
+                    wls_b, flux_b, err_b, w_b = s["wls"], s["flux"], s["fluxerr"], s["weight"]
+                else:
+                    fmin, fmax = _filter_linear_wavelength_range(
+                        filt, filter_path=filter_path, snname=snname, csp_sne=csp_sne
+                    )
+                    st = stitch_arm_spectrum_for_filter(member_specs, names, fmin, fmax, with_weight=True)
+                    if st is None:
+                        continue
+                    wls_b, flux_b, err_b, w_b = st
                 _, _, syn, _, _, _ = band_flux_trapz(
-                    pre["wls"],
-                    flux_lin,
-                    pre["fluxerr"],
+                    wls_b,
+                    flux_b,
+                    err_b,
                     filt,
                     filter_path=filter_path,
                     snname=snname,
                     csp_sne=csp_sne,
-                    spec_weight=spec_weights_or_none(pre),
+                    spec_weight=w_b,
                 )
             except Exception:
                 continue
             if target_lin > 0 and np.isfinite(syn):
-                rel_errors.append(abs(syn - target_lin) / target_lin)
+                rel = abs(syn - target_lin) / target_lin
+                rel_errors.append(rel)
+                if return_points:
+                    points.append({"unit": unit_id, "band": filt, "mjd": mjd,
+                                   "rel_err": float(rel), "log_ratio": float(np.log10(syn / target_lin))
+                                   if syn > 0 else float("nan")})
     if not rel_errors:
-        return {
+        out = {
             "max_rel_phot_err": float("nan"),
             "median_rel_phot_err": float("nan"),
             "n_phot_points": 0,
         }
-    arr = np.asarray(rel_errors, dtype=float)
-    return {
-        "max_rel_phot_err": float(np.max(arr)),
-        "median_rel_phot_err": float(np.median(arr)),
-        "n_phot_points": int(arr.size),
-    }
+    else:
+        arr = np.asarray(rel_errors, dtype=float)
+        out = {
+            "max_rel_phot_err": float(np.max(arr)),
+            "median_rel_phot_err": float(np.median(arr)),
+            "n_phot_points": int(arr.size),
+        }
+    out["closure_min_filter_coverage"] = min_cov
+    if return_points:
+        out["points"] = points
+    return out
 
 
 def _copy_mangled_tree(src: str, dst: str) -> None:
@@ -813,9 +876,12 @@ def run_iterative_gp_mangle(
     unit_of: dict[str, tuple[str, list[tuple[float, float]]]] = {}
     prev_corrections: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
     fine_step = 0.0
+    # the closure check uses the same units (XSHOOTER nights together) in both modes
+    closure_units = mangle_units(spec_entries, output_dir=out_root, snname=snname,
+                                 bundle_aware=bundle_aware)
+    spec_mjds = {e.basename: float(e.mjd) for e in spec_entries}
     if rmode == "gp_correction":
-        units = mangle_units(spec_entries, output_dir=out_root, snname=snname,
-                             bundle_aware=bundle_aware)
+        units = closure_units
         _pre_all = {e.basename: load_linear_spectrum(e.path) for e in spec_entries}
         for uid, members in units:
             ivs = [
@@ -1036,6 +1102,8 @@ def run_iterative_gp_mangle(
             snname=snname,
             csp_sne=csp_sne,
             photometry_target=pt,
+            units=closure_units,
+            spec_mjds=spec_mjds,
         )
         mask_metrics = compare_masks(prev_masks_by_bn, new_masks) if prev_masks_by_bn else {
             "delta_mask_rms": float("nan"),

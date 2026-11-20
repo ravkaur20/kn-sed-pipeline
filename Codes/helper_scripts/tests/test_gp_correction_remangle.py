@@ -169,6 +169,32 @@ class TestLaterIterations(_Setup):
         self.assertTrue(np.all(igm.previous_correction_on(np.array([5000.0]), "g1", {}, [(0, 1e5)]) == 0))
 
 
+class TestClosure(_Setup):
+    """The closure check uses the coverage rule and checks an XSHOOTER night as one unit."""
+
+    def closure(self, **kw):
+        masks = {bn: np.zeros(np.loadtxt(p).shape[0]) for bn, p in self.pre.items()}   # prescaled = truth
+        mjds = {bn: m[0] for bn, m in self.members.items()}
+        return igm.compute_photometry_closure(
+            self.pre, masks, self.phot, list(BOXES), self.mjd_dict, filter_path=self.fp,
+            snname="TEST", spec_mjds=mjds, return_points=True, **kw)
+
+    def test_partly_covered_bands_are_skipped(self):
+        # UVB arm alone covers Box_B (6300-7300) only to 6400: biased if used
+        old = self.closure(min_filter_coverage=0.0)
+        self.assertGreater(old["max_rel_phot_err"], 0.02)
+        new = self.closure(min_filter_coverage=0.99)
+        self.assertLess(new["max_rel_phot_err"], 2e-3)
+        self.assertEqual(new["closure_min_filter_coverage"], 0.99)
+
+    def test_xshooter_night_checked_once_on_stitched_arms(self):
+        res = self.closure(units=self.units, min_filter_coverage=0.99)
+        got = sorted((p["unit"], p["band"]) for p in res["points"])
+        self.assertEqual(got, [("LDSS_y.dat", "Box_A"), ("LDSS_y.dat", "Box_B"),
+                               ("g1", "Box_A"), ("g1", "Box_B"), ("g1", "Box_C")])
+        self.assertLess(res["max_rel_phot_err"], 2e-3)
+
+
 class TestModeAndUnits(unittest.TestCase):
     def test_mode_validation(self):
         import pipeline_config as pconf
