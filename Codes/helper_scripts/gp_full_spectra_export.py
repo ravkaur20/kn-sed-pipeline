@@ -57,31 +57,47 @@ def export_full_gp_spectra(
     )
 
     gn = spec_class.grid_norm_info
-
-    list_mjds_tot = np.asarray(grid_ext_columns, dtype=float)
-    list_mjds_spec = np.asarray(spec_class.get_spec_mjd(), dtype=float)
     written: list[str] = []
 
-    for mj in list_mjds_tot:
+    # Every prediction column is written, including the epochs of observed spectra.
+    # Near-identical copies (e.g. X-shooter arms of one night) become one file.
+    for mj in distinct_phase_columns(grid_ext_columns):
         mask = _x2_mask_for_phase(x2_fill, mj, gn)
-        wls_log = _log10_wls_from_x1_norm(np.asarray(x1_fill[mask], dtype=float), gn)
-        smooth_ext_spec = np.asarray(mu_conv[mask], dtype=float)
-        smooth_ext_spec_err = np.asarray(std_conv[mask], dtype=float)
-
-        if not GP2dim.phases_close(mj, list_mjds_spec):
-            wls_lin_out = np.power(10.0, wls_log)
-            written.append(
-                _write_spec_txt(
-                    full_gp_dir,
-                    mj,
-                    "_spec_extended_FL.txt",
-                    wls_lin_out,
-                    smooth_ext_spec,
-                    smooth_ext_spec_err,
-                )
+        x1_sel = np.asarray(x1_fill[mask], dtype=float)
+        # copies ~1e-12 apart share the mask; keep one row per wavelength
+        _, keep = np.unique(np.round(x1_sel, 9), return_index=True)
+        wls_log = _log10_wls_from_x1_norm(x1_sel[keep], gn)
+        smooth_ext_spec = np.asarray(mu_conv[mask], dtype=float)[keep]
+        smooth_ext_spec_err = np.asarray(std_conv[mask], dtype=float)[keep]
+        if wls_log.size == 0:
+            continue
+        written.append(
+            _write_spec_txt(
+                full_gp_dir,
+                mj,
+                "_spec_extended_FL.txt",
+                np.power(10.0, wls_log),
+                smooth_ext_spec,
+                smooth_ext_spec_err,
             )
+        )
 
     return written
+
+
+# Columns closer than this in log10(phase days) are the same epoch (1e-5 dex ~ 0.0002 d at 8 d).
+PHASE_COLUMN_MERGE_ATOL_LOG10 = 1e-5
+
+
+def distinct_phase_columns(columns, atol: float = PHASE_COLUMN_MERGE_ATOL_LOG10) -> np.ndarray:
+    """Sorted log10-phase columns with near-identical copies collapsed to the first one."""
+    c = np.sort(np.asarray(columns, dtype=float).ravel())
+    c = c[np.isfinite(c)]
+    out: list[float] = []
+    for v in c:
+        if not out or v - out[-1] > float(atol):
+            out.append(float(v))
+    return np.asarray(out, dtype=float)
 
 
 def copy_full_gp_tree(src_dir: str, dst_dir: str) -> None:
