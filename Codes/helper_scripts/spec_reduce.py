@@ -46,7 +46,8 @@ TELLURIC_BANDS = [
 
 # Input files that are already de-redshifted (rest frame), matched by a
 # substring of the file name. ``load_raw`` moves them to the observed frame
-# (wl * (1 + z)) so every spectrum starts in the same frame as the photometry.
+# (wl * (1 + z), flux and errors / (1 + z)) so every spectrum starts in the
+# same frame as the photometry.
 # AT2017gfo LDSS3: O2 A/B telluric residuals sit at 7594/(1+z), 6867/(1+z).
 REST_FRAME_FILES = {
     "AT2017gfo": ["LDSS3"],
@@ -86,9 +87,13 @@ def load_raw(snname, filename):
     4-column XSHOOTER files: wavelength, telluric-corrected flux,
     uncorrected flux, sigma. We use the telluric-corrected flux.
 
-    Files listed in ``REST_FRAME_FILES`` are shifted to the observed frame.
-    Only the wavelengths are shifted; any (1+z) flux factor is a constant
-    that mangling absorbs.
+    Files listed in ``REST_FRAME_FILES`` are moved to the observed frame,
+    undoing the standard de-redshifting (lambda_rest = lambda_obs / (1+z),
+    F_lambda,rest = (1+z) F_lambda,obs):
+
+        lambda_obs = (1+z) lambda_rest,   F_lambda,obs = F_lambda,rest / (1+z)
+
+    and the flux errors are divided by (1+z) too.
     """
     data = np.genfromtxt(os.path.join(RAW_DIR, snname, filename),
                          comments="#", skip_header=1)
@@ -112,8 +117,11 @@ def load_raw(snname, filename):
     if spec["shifted_to_observed"]:
         z = pconf.SN_REDSHIFT[snname]
         spec["wl"] = spec["wl"] * (1 + z)
-        print("%s is rest frame: shifted to observed frame (z = %g)"
-              % (filename, z))
+        spec["flux"] = spec["flux"] / (1 + z)
+        if spec["err"] is not None:
+            spec["err"] = spec["err"] / (1 + z)
+        print("%s is rest frame: moved to observed frame (z = %g; "
+              "wavelength x (1+z), flux / (1+z))" % (filename, z))
     return spec
 
 

@@ -27,6 +27,61 @@ class TestRegionText(unittest.TestCase):
         self.assertEqual(out[1], "edges = (4100, 9900)")
         self.assertIn("2 regions", out[3])
 
+class TestRestFrameLoad(unittest.TestCase):
+    """Rest-frame inputs move to the observed frame: lambda x (1+z), F_lambda / (1+z)."""
+
+    def setUp(self):
+        import os
+        import tempfile
+        from unittest import mock
+
+        import numpy as np
+
+        self.np = np
+        self.tmp = tempfile.TemporaryDirectory()
+        os.makedirs(os.path.join(self.tmp.name, "SNX"))
+        self.wl = np.array([4000.0, 5000.0, 6000.0])
+        self.flux = np.array([1.0, 2.0, 3.0])
+        self.err = np.array([0.1, 0.2, 0.3])
+        rows4 = np.column_stack([self.wl, self.flux, self.flux, self.err])
+        for name, data in (("a_LDSS3.dat", rows4[:, :2]), ("b_LDSS3.dat", rows4),
+                           ("c_XS.dat", rows4)):
+            np.savetxt(os.path.join(self.tmp.name, "SNX", name), data, header="cols")
+        self.z = 0.01
+        for p in (mock.patch.object(sr, "RAW_DIR", self.tmp.name),
+                  mock.patch.dict(sr.REST_FRAME_FILES, {"SNX": ["LDSS3"]}),
+                  mock.patch.dict(sr.pconf.SN_REDSHIFT, {"SNX": self.z})):
+            p.start()
+            self.addCleanup(p.stop)
+        self.addCleanup(self.tmp.cleanup)
+
+    def _load(self, name):
+        with contextlib.redirect_stdout(io.StringIO()):
+            return sr.load_raw("SNX", name)
+
+    def test_rest_frame_without_errors(self):
+        s = self._load("a_LDSS3.dat")
+        self.assertTrue(s["shifted_to_observed"])
+        self.np.testing.assert_allclose(s["wl"], self.wl * (1 + self.z))
+        self.np.testing.assert_allclose(s["flux"], self.flux / (1 + self.z))
+        self.assertIsNone(s["err"])
+        # flux per unit wavelength x wavelength interval is conserved
+        trap = lambda y, x: float(self.np.sum(0.5 * (y[1:] + y[:-1]) * self.np.diff(x)))
+        self.np.testing.assert_allclose(trap(s["flux"], s["wl"]),
+                                        trap(self.flux, self.wl))
+
+    def test_rest_frame_with_errors(self):
+        s = self._load("b_LDSS3.dat")
+        self.np.testing.assert_allclose(s["flux"], self.flux / (1 + self.z))
+        self.np.testing.assert_allclose(s["err"], self.err / (1 + self.z))
+
+    def test_observed_frame_untouched(self):
+        s = self._load("c_XS.dat")
+        self.assertFalse(s["shifted_to_observed"])
+        self.np.testing.assert_array_equal(s["wl"], self.wl)
+        self.np.testing.assert_array_equal(s["flux"], self.flux)
+        self.np.testing.assert_array_equal(s["err"], self.err)
+
 
 if __name__ == "__main__":
     unittest.main()
