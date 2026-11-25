@@ -241,7 +241,7 @@ where $S(\lambda)$ is the filter's photon-counting throughput. The second equali
 
 A three-column file (wavelength, flux, error) is read **without its errors**; reformat it before notebook 0.2.
 
-**Frame.** Every spectrum must reach the production steps in the observed frame. Files that are already de-redshifted are listed in `REST_FRAME_FILES` in `Codes/helper_scripts/spec_reduce.py` (matched by a substring of the file name, per object); notebook 0.2 multiplies their wavelengths by $(1+z)$ when it loads them. Only the wavelength is shifted: the constant $1/(1+z)$ flux factor is absorbed by the step-4 and step-5 scaling. For AT2017gfo the LDSS3 spectra are rest frame and are listed.
+**Frame.** Every spectrum must reach the production steps in the observed frame. Files that are already de-redshifted are listed in `REST_FRAME_FILES` in `Codes/helper_scripts/spec_reduce.py` (matched by a substring of the file name, per object); notebook 0.2 multiplies their wavelengths by $(1+z)$ and divides their flux and errors by $(1+z)$ when it loads them, undoing the standard de-redshifting $\lambda_{\rm rest}=\lambda_{\rm obs}/(1+z)$, $F_{\lambda,\rm rest}=(1+z)F_{\lambda,\rm obs}$. (The flux factor is a constant across each spectrum, so step 5's normalization would absorb it anyway; applying it keeps the files and the pre-mangling diagnostics exact.) For AT2017gfo the LDSS3 spectra are rest frame and are listed.
 
 **Reduced spectrum files** (0.2, 0.3 and step 4 output) have four columns:
 

@@ -152,7 +152,7 @@ For each transient you provide:
 57983.969001	0.950751	Inputs/Spectroscopy/1_spec_original/AT2017gfo/NIR_AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969001_Phase+1.43d.dat
 ```
 
-All spectra must start in the **observed frame**, like the photometry. If a file is already de-redshifted (rest frame), list it in `REST_FRAME_FILES` in [`Codes/helper_scripts/spec_reduce.py`](Codes/helper_scripts/spec_reduce.py); notebook 0.2 multiplies its wavelengths by $(1+z)$ on load. The AT2017gfo LDSS3 spectra are listed there.
+All spectra must start in the **observed frame**, like the photometry. If a file is already de-redshifted (rest frame), list it in `REST_FRAME_FILES` in [`Codes/helper_scripts/spec_reduce.py`](Codes/helper_scripts/spec_reduce.py); notebook 0.2 multiplies its wavelengths by $(1+z)$ and divides its flux and errors by $(1+z)$ on load (undoing $\lambda_{\rm rest}=\lambda_{\rm obs}/(1+z)$, $F_{\lambda,\rm rest}=(1+z)F_{\lambda,\rm obs}$). The AT2017gfo LDSS3 spectra are listed there.
 
 The clipped, error and prescaled files have four columns, `wls flux flux_err weight`. `weight` is 1 for real pixels and 0 for pixels clipped in notebook 0.2 (bridged by a straight line so the file has no gaps); every later step ignores weight-0 pixels.
 
